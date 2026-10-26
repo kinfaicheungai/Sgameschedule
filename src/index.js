@@ -43,6 +43,16 @@ function validTz(tz) {
   try { new Intl.DateTimeFormat('en-AU', { timeZone: tz }); return true; } catch { return false; }
 }
 
+const dayOf = (iso, tz) =>
+  new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(iso));
+
+/** "今日仲有 N 場（包括呢場）" — matches today (in tz) that haven't kicked off yet, counting this one. */
+function remainingToday(matches, m, tz) {
+  const day = dayOf(m.at, tz);
+  const n = matches.filter((x) => x.enabled && dayOf(x.at, tz) === day && Date.parse(x.at) >= Date.parse(m.at)).length;
+  return n <= 1 ? '今日最後一場' : `今日仲有 ${n} 場（包括呢場）`;
+}
+
 const fmtTime = (iso, tz) =>
   new Intl.DateTimeFormat('en-AU', { timeZone: tz, hour: 'numeric', minute: '2-digit', hour12: true }).format(new Date(iso));
 
@@ -243,7 +253,7 @@ export class Store extends DurableObject {
       const where = m.channel ? ` · ${settings.channelLabel} ${m.channel}` : '';
       const r = await this.broadcast({
         title: `${settings.emoji ? settings.emoji + ' ' : ''}${teams}`,
-        body: `${settings.reminderMinutes} 分鐘後開賽 · ${fmtTime(m.at, settings.timezone)}${where}${m.note ? ' · ' + m.note : ''}`,
+        body: `${settings.reminderMinutes} 分鐘後開賽 · ${fmtTime(m.at, settings.timezone)}${where}${m.note ? ' · ' + m.note : ''}\n${remainingToday(matches, m, settings.timezone)}`,
         url: '/',
       });
       // Retry next minute if nothing got through, until the window closes.
