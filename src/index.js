@@ -1,6 +1,7 @@
 import { DurableObject } from 'cloudflare:workers';
 import { sendPush } from './webpush.js';
 import { textToTable, parseTable, sheetCsvUrl } from '../public/parse.js';
+import { MIGRATION_ID, MIGRATION_MATCHES } from './migration.js';
 
 const SEND_WINDOW_MAX_MS = 5 * 60_000; // send between T-N and T-N+5 min; never fire stale reminders
 const AUTO_SYNC_MS = 15 * 60_000;
@@ -51,6 +52,11 @@ export class Store extends DurableObject {
     const s = this.ctx.storage;
     let matches = await s.get('matches');
     if (!matches) { matches = SEED_MATCHES; await s.put('matches', matches); }
+    if ((await s.get('migration')) !== MIGRATION_ID) {
+      matches = MIGRATION_MATCHES;
+      await s.put({ matches, sent: [], migration: MIGRATION_ID });
+      await this.log({ type: 'sync', count: matches.length, note: MIGRATION_ID });
+    }
     return {
       matches,
       subscriptions: (await s.get('subscriptions')) || [],
