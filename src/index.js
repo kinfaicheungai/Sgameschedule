@@ -115,7 +115,13 @@ export class Store extends DurableObject {
     return { delivered, failed, subscriptions: keep.length };
   }
 
-  async test() {
+  async test(delayMinutes = 0) {
+    if (delayMinutes > 0) {
+      const at = Date.now() + Math.min(delayMinutes, 30) * 60_000;
+      await this.ctx.storage.put('pendingTest', at);
+      await this.log({ type: 'test-scheduled', for: new Date(at).toISOString() });
+      return { scheduled: new Date(at).toISOString() };
+    }
     const r = await this.broadcast({ title: 'SSA Match Alerts — 測試通知', body: '推送通知已設定！正式比賽會在開賽前 20 分鐘提醒。', url: '/' });
     await this.log({ type: 'test', ...r });
     return r;
@@ -127,6 +133,13 @@ export class Store extends DurableObject {
     const { matches, subscriptions, sent } = await this.load();
     const now = Date.now();
     const results = [];
+    // Delayed test: lets you close the app and confirm background delivery.
+    const pendingTest = await this.ctx.storage.get('pendingTest');
+    if (pendingTest && now >= pendingTest) {
+      await this.ctx.storage.delete('pendingTest');
+      const r = await this.broadcast({ title: 'SSA Match Alerts — 背景測試 ✅', body: 'App 關閉時都收到通知，正式提醒會一樣送到。', url: '/' });
+      await this.log({ type: 'test-delayed', ...r });
+    }
     for (const m of matches) {
       const key = `${m.id}|${m.at}`;
       if (!m.enabled || sent.includes(key)) continue;
@@ -185,7 +198,7 @@ export default {
       case 'POST /api/subscribe': r = await s.subscribe(await body(), url.origin); break;
       case 'POST /api/test':
         if (!env.VAPID_PRIVATE_KEY) return json({ error: 'Push keys missing' }, 503);
-        r = await s.test(); break;
+        r = await s.test(Number(url.searchParams.get('delay')) || 0); break;
       case 'GET /api/status': r = await s.status(); break;
       default: return json({ error: 'Not found' }, 404);
     }
