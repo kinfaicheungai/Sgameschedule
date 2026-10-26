@@ -1,0 +1,22 @@
+{
+  "name": "sgameschedule",
+  "version": "1.1.0",
+  "description": "SSA MAG2 match alerts PWA with Web Push on Cloudflare Workers",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kinfaicheungai/sgameschedule.git"
+  },
+  "bugs": {
+    "url": "https://github.com/kinfaicheungai/sgameschedule/issues"
+  },
+  "homepage": "https://github.com/kinfaicheungai/sgameschedule#readme",
+  "devDependencies": {
+    "wrangler": "^4.152.0"
+  },
+  "private": true,
+  "type": "module"
+}

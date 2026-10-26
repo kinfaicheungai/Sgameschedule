@@ -1,0 +1,24 @@
+name = "sgameschedule"
+main = "src/index.js"
+compatibility_date = "2025-09-01"
+
+[assets]
+directory = "./public"
+binding = "ASSETS"
+run_worker_first = ["/api/*"]
+
+# Check every minute for reminders due (free plan allows this).
+[triggers]
+crons = ["* * * * *"]
+
+[[durable_objects.bindings]]
+name = "STORE"
+class_name = "Store"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["Store"]
+
+[vars]
+# Public key is not secret. APP_TOKEN and VAPID_PRIVATE_KEY are set as Secrets in the Cloudflare dashboard.
+VAPID_PUBLIC_KEY = "BLX5QQ8YmVAQF0zBrLyhRmRmIBFeDdfGeNu7JjuTETzku94mkqpg1ix85ngFqKFFc1psnGkr059ny2s_nwPbJb0"
