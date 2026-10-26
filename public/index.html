@@ -1,31 +1,599 @@
-<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/><meta name="theme-color" content="#0b1220"/><link rel="manifest" href="/manifest.webmanifest"/><link rel="icon" href="/icon.svg"/><link rel="apple-touch-icon" href="/apple-touch-icon.png"/><meta name="apple-mobile-web-app-capable" content="yes"/><meta name="mobile-web-app-capable" content="yes"/><meta name="apple-mobile-web-app-title" content="SSA Alerts"/><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/><title>SSA Match Alerts</title><style>
-:root{font-family:ui-sans-serif,-apple-system,system-ui,"PingFang TC",sans-serif;color:#eef3fb;background:#0b1220}*{box-sizing:border-box}body{margin:0}main{max-width:760px;margin:auto;padding:28px 18px 80px}.eyebrow{color:#fbbf24;font-weight:800;letter-spacing:.12em;font-size:12px}h1{font-size:36px;letter-spacing:-.05em;margin:8px 0}p{line-height:1.5;color:#a9b7ca}.hero{padding:20px 0 8px}.pill{display:inline-block;background:#1d2b42;border:1px solid #34465c;border-radius:99px;padding:7px 12px;font-size:13px;color:#c5d4e5}.panel{background:#131e30;border:1px solid #26374d;border-radius:22px;padding:18px;margin-top:18px}.row{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}.muted{color:#a9b7ca;font-size:13px}button{background:#fb923c;border:0;color:#1b120a;font-weight:750;padding:11px 15px;border-radius:11px;cursor:pointer}button.secondary{background:#26374d;color:#f0f6ff}button:disabled{opacity:.5;cursor:not-allowed}input,textarea{background:#0a1525;border:1px solid #35465b;border-radius:9px;padding:12px;color:white;width:100%;font:inherit}input[type=checkbox]{width:auto;accent-color:#fb923c}label{font-size:13px;color:#a9b7ca;display:block;margin:12px 0 6px}.match{padding:17px 0;border-bottom:1px solid #26374d}.match:last-child{border:0}.teams{font-size:21px;font-weight:790;letter-spacing:-.025em}.time{font-size:13px;color:#bdcadd;margin-top:7px}.channel{color:#fbbf24;font-size:12px;background:#3a2c1b;padding:6px 9px;border-radius:7px}.tag{font-size:12px;color:#b7c6d9}.fields{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin:10px 0}.fields input{min-width:0}.editor-match{padding:13px 0;border-bottom:1px solid #26374d}.hidden{display:none}.status{min-height:20px;color:#fbbf24;font-size:13px;margin-top:10px}@media(max-width:420px){h1{font-size:32px}.fields{grid-template-columns:1fr 1fr}}
-</style></head><body><main><div class="hero"><div class="eyebrow">SSA • MAG2</div><h1>Match Alerts <span style="color:#fb923c">●</span></h1><p>比賽前 20 分鐘，直接喺你手機彈出提示。</p><span class="pill">🇦🇺 Australia/Sydney · AEDT</span> <span class="pill">🔔 20 min before</span></div>
-<section class="panel" id="connect"><div class="row"><b>啟用個人賽程</b><span class="muted">私人管理密碼</span></div><label for="token">APP_TOKEN（伺服器設定嘅密碼）</label><input id="token" type="password" placeholder="輸入管理密碼"/><div class="row" style="margin-top:12px"><button id="login">載入賽程</button><button class="secondary" id="notify">啟用通知</button><button class="secondary" id="test">發送測試通知</button></div><div class="row" style="margin-top:10px"><button class="secondary" id="testLater">⏱ 2 分鐘後背景測試</button><span class="muted">撳完即刻關 App / 鎖機，等通知</span></div><div class="status" id="status"></div><p class="muted" id="health"></p><p class="muted">iPhone：Safari → 分享 → 加入主畫面 → 從主畫面開啟 → 按「啟用通知」。正式推送需要已部署嘅 HTTPS 網站及伺服器。</p></section>
-<section class="panel"><div class="row"><b>比賽日程</b><span class="muted" id="count">—</span></div><div id="list"><p>輸入密碼後載入賽程。</p></div></section>
-<section class="panel"><div class="row"><b>編輯排期</b><button class="secondary" id="toggle">展開</button></div><div id="editor" class="hidden"><p class="muted">已知 5 場賽事預載；其他場次可新增。所有時間以 Sydney / Newcastle 當地時間輸入。</p><div id="editRows"></div><div class="row" style="margin-top:15px"><button class="secondary" id="add">＋ 新增比賽</button><button id="save">儲存排期</button></div><label>批量匯入 CSV（日期時間,主隊,客隊,Channel，例如 2026-10-26 12:00,QLD,FN,4；可有標題行）</label><textarea id="csv" rows="4" placeholder="2026-10-26 12:00,QLD,FN,4"></textarea><button class="secondary" id="import">匯入 CSV（取代現有排期）</button></div></section>
-<p class="muted">SSA Match Alerts v1.2 · 提醒以伺服器時間觸發；推送受裝置連線、通知權限及 Focus 模式影響。</p></main>
-<script>
-const $=id=>document.getElementById(id);let matches=[];let config={};const store={get(){try{return localStorage.getItem('ssa_token')||''}catch{return ''}},set(v){try{localStorage.setItem('ssa_token',v)}catch{}}};let token=store.get();const key=()=>token||$('token').value.trim();const msg=s=>$('status').textContent=s;
-const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const fmt=date=>new Intl.DateTimeFormat('en-AU',{timeZone:'Australia/Sydney',weekday:'short',day:'numeric',month:'short',hour:'numeric',minute:'2-digit',hour12:true}).format(new Date(date));
-async function api(url,opts={}){const r=await fetch(url,{...opts,headers:{'content-type':'application/json','x-app-token':key(),...(opts.headers||{})}});let j=await r.json();if(!r.ok)throw Error(j.error||'Request failed');return j}
-function render(){matches.sort((a,b)=>Date.parse(a.at)-Date.parse(b.at));$('count').textContent=`${matches.length} 場`;const now=Date.now();$('list').innerHTML=matches.map(m=>`<div class="match"><div class="row"><div class="teams">${esc(m.home)} <span style="color:#62748b">vs</span> ${esc(m.away)}</div><span class="channel">CH ${esc(m.channel)}</span></div><div class="row" style="margin-top:8px"><div class="time">${esc(fmt(m.at))}</div><span class="tag">${!m.enabled?'提醒已關閉':Date.parse(m.at)<now?'已開賽':'🔔 提前 20 分鐘'}</span></div></div>`).join('')||'<p>暫無比賽</p>';renderEdit()}
-function renderEdit(){$('editRows').innerHTML=matches.map((m,i)=>`<div class="editor-match" data-i="${i}"><div class="fields"><input data-field="home" aria-label="主隊" value="${esc(m.home)}" placeholder="主隊"/><input data-field="away" aria-label="客隊" value="${esc(m.away)}" placeholder="客隊"/><input data-field="channel" aria-label="Channel" value="${esc(m.channel)}" placeholder="Channel"/></div><div class="row"><input data-field="at" type="datetime-local" style="max-width:260px" value="${localValue(m.at)}"/><label style="margin:0"><input type="checkbox" data-field="enabled" ${m.enabled?'checked':''}/> 提醒</label><button class="secondary" data-delete="${i}">刪除</button></div></div>`).join('')}
-function localValue(date){const parts=new Intl.DateTimeFormat('en-CA',{timeZone:'Australia/Sydney',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).formatToParts(new Date(date));const p=Object.fromEntries(parts.map(x=>[x.type,x.value]));return `${p.year}-${p.month}-${p.day}T${p.hour}:${p.minute}`}
-function sydOffset(ms){const p=Object.fromEntries(new Intl.DateTimeFormat('en-CA',{timeZone:'Australia/Sydney',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hourCycle:'h23'}).formatToParts(new Date(ms)).map(x=>[x.type,x.value]));return Date.UTC(+p.year,+p.month-1,+p.day,+p.hour,+p.minute,+p.second)-ms}
-function sydIso(text){const m=/^(\d{4})-(\d\d)-(\d\d)T(\d\d):(\d\d)$/.exec(text||'');if(!m)throw Error('日期格式無效：'+text);const wall=Date.UTC(+m[1],+m[2]-1,+m[3],+m[4],+m[5]);let t=wall-sydOffset(wall);t=wall-sydOffset(t);if(!Number.isFinite(t))throw Error('日期無效');return new Date(t).toISOString()}
-function collect(){matches=[...document.querySelectorAll('.editor-match')].map((el,i)=>{const base=matches[Number(el.dataset.i)]||{};const value=k=>el.querySelector(`[data-field="${k}"]`);return {...base,id:base.id||crypto.randomUUID(),home:value('home').value.trim(),away:value('away').value.trim(),channel:value('channel').value.trim(),at:sydIso(value('at').value),enabled:value('enabled').checked}})}
-$('login').onclick=async()=>{try{token=$('token').value.trim();store.set(token);matches=await api('/api/matches');render();msg('賽程載入成功');refreshStatus()}catch(e){msg(e.message)}};
-$('toggle').onclick=()=>{$('editor').classList.toggle('hidden');$('toggle').textContent=$('editor').classList.contains('hidden')?'展開':'收起'};
-$('add').onclick=()=>{try{collect();matches.push({id:crypto.randomUUID(),at:new Date(Date.now()+86400000).toISOString(),home:'',away:'',channel:'2',enabled:true});render()}catch(e){msg(e.message)}};
-$('editRows').onclick=e=>{const idx=e.target.dataset.delete;if(idx!==undefined){try{collect();matches.splice(Number(idx),1);render()}catch(err){msg(err.message)}}};
-$('save').onclick=async()=>{try{collect();await api('/api/matches',{method:'PUT',body:JSON.stringify({matches})});render();msg(`已儲存 ${matches.length} 場比賽`)}catch(e){msg(e.message)}};
-$('import').onclick=()=>{try{const rows=$('csv').value.trim().split(/\r?\n/).map(l=>l.trim()).filter(l=>l&&/^\d{4}-/.test(l));if(!rows.length)throw Error('CSV 冇有效資料行');const added=rows.map((line,i)=>{const [dt,home,away,channel]=line.split(',').map(s=>s.trim());if(!dt||!home||!away||!channel)throw Error(`CSV 第 ${i+1} 行錯誤`);return {id:crypto.randomUUID(),at:sydIso(dt.replace(' ','T')),home,away,channel,enabled:true}});matches=added;render();msg(`已匯入 ${added.length} 場；記得按「儲存排期」`)}catch(e){msg(e.message)}};
-$('notify').onclick=async()=>{try{if(!('serviceWorker'in navigator)||!('PushManager'in window))throw Error('此環境唔支援 Web Push；iPhone 請先加入主畫面再開啟');if(!config.publicKey)throw Error('伺服器未設定 VAPID keys');const permission=await Notification.requestPermission();const reg=await swReady;if(permission!=='granted')throw Error('尚未授權通知');const arr=Uint8Array.from(atob(config.publicKey.replace(/-/g,'+').replace(/_/g,'/')),c=>c.charCodeAt(0));const sub=await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:arr});await api('/api/subscribe',{method:'POST',body:JSON.stringify(sub)});msg('✅ 通知已啟用！按「發送測試通知」驗證')}catch(e){msg(e.message)}};
-$('test').onclick=async()=>{try{const r=await api('/api/test',{method:'POST'});msg(`已送出：${r.delivered} 部裝置，失敗 ${r.failed} 部`);refreshStatus()}catch(e){msg(e.message)}};
-$('testLater').onclick=async()=>{try{const r=await api('/api/test?delay=2',{method:'POST'});msg(`已排程：${fmt(r.scheduled)} 左右發出（最多遲 1 分鐘）。依家可以關 App 鎖機。`)}catch(e){msg(e.message)}};
-const swReady='serviceWorker'in navigator?navigator.serviceWorker.register('/sw.js').then(()=>navigator.serviceWorker.ready):Promise.reject(Error('no service worker'));swReady.catch(()=>{});
-async function refreshStatus(){try{const s=await api('/api/status');const ago=s.lastTick?Math.round((Date.now()-Date.parse(s.lastTick))/60000):null;$('health').innerHTML=`📱 已登記裝置：<b>${s.devices}</b> · ⏱ 伺服器上次檢查：${ago===null?'未有':ago<=1?'啱啱':ago+' 分鐘前'}<br>${s.nextReminder?`🔔 下一個提醒：${esc(s.nextReminder.match)} · ${esc(fmt(s.nextReminder.alertAt))}`:'冇待發提醒'}`}catch{}}
-(async()=>{try{config=await fetch('/api/config').then(r=>r.json());if(token){$('token').value=token;matches=await api('/api/matches');render();msg('賽程已載入');refreshStatus()}if(!config.ready)msg('伺服器未完成設定 APP_TOKEN / VAPID keys')}catch{}})();
-</script></body></html>
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
+<meta name="theme-color" content="#0F1724"/>
+<link rel="manifest" href="/manifest.webmanifest"/>
+<link rel="icon" href="/icon.svg"/>
+<link rel="apple-touch-icon" href="/apple-touch-icon.png"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-title" content="Match Alerts"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&display=swap" rel="stylesheet"/>
+<title>Match Alerts</title>
+<style>
+:root{
+  --bg:#0F1724; --surface:#172133; --raise:#1E2A40; --line:#25324A;
+  --chalk:#EEF1F5; --muted:#8A96A8; --faint:#5E6B80; --amber:#FFB547; --amber-ink:#2A1A00; --danger:#FF7A6B;
+  --ui:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang TC","Noto Sans TC",system-ui,sans-serif;
+  --board:"Barlow Condensed","SF Pro Display","PingFang TC",sans-serif;
+  color-scheme:dark;
+}
+*{box-sizing:border-box;margin:0}
+html{background:var(--bg)}
+body{background:var(--bg);color:var(--chalk);font:16px/1.5 var(--ui);-webkit-font-smoothing:antialiased;-webkit-tap-highlight-color:transparent}
+main{max-width:640px;margin:0 auto;padding:calc(env(safe-area-inset-top) + 14px) 20px calc(env(safe-area-inset-bottom) + 48px)}
+button,input,select,textarea{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--amber);outline-offset:2px}
+[hidden]{display:none!important}
+
+/* Top bar */
+.top{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:44px}
+.event{font-size:14px;color:var(--muted);font-weight:500}
+.icons{display:flex;gap:6px}
+.icon{width:40px;height:40px;border-radius:50%;border:1px solid var(--line);background:transparent;display:grid;place-items:center;cursor:pointer;color:var(--chalk)}
+.icon svg{width:19px;height:19px}
+h1{font:600 40px/1 var(--board);letter-spacing:.005em;margin:18px 0 22px}
+
+/* Scoreboard: the one loud element */
+.board{position:relative;background:var(--surface);border:1px solid var(--line);border-radius:20px;padding:20px 20px 18px;overflow:hidden}
+.board::before{content:"";position:absolute;inset:0 0 auto 0;height:3px;background:var(--amber)}
+.board-meta{display:flex;justify-content:space-between;align-items:baseline;gap:10px;color:var(--muted);font-size:14px}
+.board-meta b{color:var(--chalk);font-weight:600}
+.teams{margin:14px 0 16px;font:700 clamp(54px,17vw,88px)/.9 var(--board);text-transform:uppercase;letter-spacing:.01em;word-break:break-word}
+.teams .vs{display:block;font:500 15px/1 var(--ui);text-transform:none;color:var(--faint);margin:10px 0 8px;letter-spacing:0}
+.clock{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;border-top:1px solid var(--line);padding-top:14px}
+.clock-label{font-size:13px;color:var(--muted);line-height:1.35}
+.digits{font:600 44px/1 var(--board);color:var(--amber);font-variant-numeric:tabular-nums;letter-spacing:.02em;text-shadow:0 0 18px rgba(255,181,71,.28)}
+.digits small{font-size:.5em;color:var(--muted);text-shadow:none;margin-left:2px}
+.board.empty .teams{font-size:40px;color:var(--muted)}
+.court{font:600 15px/1 var(--board);letter-spacing:.04em;color:var(--amber);border:1px solid rgba(255,181,71,.35);border-radius:6px;padding:5px 8px;white-space:nowrap}
+
+/* Health line */
+.health{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:14px 2px 0;font-size:13px;color:var(--muted);min-height:36px}
+.health .dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--faint);margin-right:8px;vertical-align:1px}
+.health .dot.ok{background:#4ADE80}.health .dot.warn{background:var(--amber)}.health .dot.bad{background:var(--danger)}
+.btn{border:0;border-radius:12px;padding:11px 16px;font-weight:600;cursor:pointer;background:var(--raise);color:var(--chalk)}
+.btn.primary{background:var(--amber);color:var(--amber-ink)}
+.btn.small{padding:8px 13px;font-size:14px;border-radius:10px}
+.btn.ghost{background:transparent;border:1px solid var(--line)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+
+/* Schedule */
+.sched{margin-top:30px}
+.sched h2{font:600 22px/1 var(--board);letter-spacing:.01em;margin-bottom:6px;display:flex;justify-content:space-between;align-items:baseline}
+.sched h2 span{font:400 13px var(--ui);color:var(--muted)}
+.day{position:sticky;top:0;background:var(--bg);padding:16px 0 6px;font-size:13px;color:var(--muted);font-weight:600;z-index:1}
+.game{display:grid;grid-template-columns:62px 1fr auto;gap:12px;align-items:center;padding:12px 0;border-top:1px solid var(--line)}
+.game .t{font:600 20px/1 var(--board);font-variant-numeric:tabular-nums}
+.game .t small{display:block;font:500 11px var(--ui);color:var(--faint);margin-top:3px;text-transform:lowercase}
+.game .vs-line{font:600 21px/1.1 var(--board);text-transform:uppercase;letter-spacing:.01em}
+.game .vs-line i{font:400 13px var(--ui);font-style:normal;color:var(--faint);margin:0 6px;text-transform:none}
+.game .sub{font-size:12px;color:var(--muted);margin-top:3px}
+.game .r{display:flex;align-items:center;gap:8px;color:var(--muted);font-size:12px}
+.game.past{opacity:.4}
+.game.off .vs-line{color:var(--muted)}
+.bell{width:16px;height:16px}
+
+/* Gate */
+.gate{background:var(--surface);border:1px solid var(--line);border-radius:20px;padding:22px 20px}
+.gate p{color:var(--muted);font-size:14px;margin:6px 0 16px}
+.field{width:100%;background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:13px 14px;color:var(--chalk)}
+.field::placeholder{color:var(--faint)}
+.gate .row{display:flex;gap:10px;margin-top:12px}
+.gate .row .field{flex:1}
+
+/* Sheets */
+dialog.sheet{position:fixed;inset:auto 0 0 0;margin:0 auto;width:100%;max-width:640px;height:min(86dvh,780px);border:0;border-radius:22px 22px 0 0;background:var(--surface);color:var(--chalk);padding:0;overflow:hidden;display:flex;flex-direction:column}
+dialog.sheet:not([open]){display:none}
+dialog.sheet::backdrop{background:rgba(4,8,15,.62);backdrop-filter:blur(3px)}
+dialog.sheet[open]{animation:rise .26s cubic-bezier(.2,.8,.2,1)}
+@keyframes rise{from{transform:translateY(40px);opacity:0}}
+@media (prefers-reduced-motion:reduce){dialog.sheet[open]{animation:none}}
+.sheet-head{display:flex;align-items:center;justify-content:space-between;padding:10px 16px 10px 20px;border-bottom:1px solid var(--line)}
+.sheet-head::before{content:"";position:absolute;left:50%;top:6px;width:36px;height:4px;border-radius:2px;background:var(--line);transform:translateX(-50%)}
+.sheet-head h3{font:600 22px/1 var(--board);padding-top:6px}
+.sheet-body{overflow:auto;padding:16px 20px calc(env(safe-area-inset-bottom) + 28px);-webkit-overflow-scrolling:touch}
+.seg{display:flex;background:var(--bg);border-radius:12px;padding:3px;margin:12px 20px 0;gap:2px}
+.seg button{flex:1;border:0;background:transparent;color:var(--muted);padding:8px 4px;border-radius:9px;font-size:14px;font-weight:600;cursor:pointer}
+.seg button[aria-selected=true]{background:var(--raise);color:var(--chalk)}
+.pane h4{font-size:15px;font-weight:600;margin:20px 0 4px}
+.pane h4:first-child{margin-top:4px}
+.pane p,.hint{font-size:13px;color:var(--muted)}
+.pane label{display:block;font-size:13px;color:var(--muted);margin:14px 0 6px}
+.pane .actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:14px}
+.check{display:flex!important;align-items:center;gap:10px;color:var(--chalk)!important;font-size:14px!important}
+.check input{width:20px;height:20px;accent-color:var(--amber)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:0 12px}
+.drop{display:block;border:1.5px dashed var(--line);border-radius:14px;padding:22px 16px;text-align:center;cursor:pointer;color:var(--muted);font-size:14px}
+.drop b{display:block;color:var(--chalk);font-size:15px;margin-bottom:2px}
+.drop input{display:none}
+.preview{margin-top:16px;border-top:1px solid var(--line);padding-top:12px}
+.preview .warn{font-size:13px;color:var(--amber);white-space:pre-line;margin:6px 0}
+.edit{border-top:1px solid var(--line);padding:12px 0}
+.edit .f3{display:grid;grid-template-columns:1fr 1fr 76px;gap:8px}
+.edit .f2{display:grid;grid-template-columns:1fr auto auto;gap:8px;align-items:center;margin-top:8px}
+.edit .field{padding:10px 11px;font-size:15px;border-radius:10px;min-width:0}
+.mini{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--muted)}
+.mini input{width:18px;height:18px;accent-color:var(--amber)}
+.del{border:0;background:transparent;color:var(--danger);font-size:13px;padding:8px;cursor:pointer}
+.log{font-size:13px;color:var(--muted);list-style:none;padding:0;margin-top:8px}
+.log li{padding:7px 0;border-top:1px solid var(--line);display:flex;justify-content:space-between;gap:10px}
+.steps{padding-left:20px;font-size:14px;color:var(--chalk)}
+.steps li{margin:6px 0}
+code{background:var(--bg);border-radius:5px;padding:1px 5px;font-size:12px;color:var(--chalk)}
+select.field{appearance:none;background-image:linear-gradient(45deg,transparent 50%,var(--muted) 50%),linear-gradient(135deg,var(--muted) 50%,transparent 50%);background-position:calc(100% - 18px) 55%,calc(100% - 13px) 55%;background-size:5px 5px;background-repeat:no-repeat}
+
+/* Toast */
+.toast{position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom) + 22px);transform:translate(-50%,20px);opacity:0;background:var(--chalk);color:var(--bg);padding:11px 16px;border-radius:14px;font-size:14px;font-weight:500;max-width:calc(100% - 32px);transition:.22s;pointer-events:none;z-index:50;box-shadow:0 10px 30px rgba(0,0,0,.35)}
+.toast.show{opacity:1;transform:translate(-50%,0)}
+.toast.err{background:var(--danger);color:#1a0603}
+.foot{margin-top:36px;font-size:12px;color:var(--faint)}
+@media(max-width:380px){.grid2{grid-template-columns:1fr}.game{grid-template-columns:54px 1fr auto}}
+</style>
+</head>
+<body>
+<main>
+  <header class="top">
+    <div class="event" id="eyebrow"></div>
+    <div class="icons">
+      <button class="icon" id="openHelp" aria-label="說明"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="9.2"/><path d="M9.6 9.3a2.5 2.5 0 0 1 4.8.9c0 1.7-2.4 2.2-2.4 3.6"/><circle cx="12" cy="17" r=".6" fill="currentColor"/></svg></button>
+      <button class="icon" id="openManage" aria-label="管理" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2.2"/><circle cx="10" cy="17" r="2.2"/></svg></button>
+    </div>
+  </header>
+  <h1 id="title">Match Alerts</h1>
+
+  <section class="gate" id="gate" hidden>
+    <b>輸入管理密碼</b>
+    <p>用嚟睇同改賽程。只需要輸入一次。</p>
+    <form class="row" id="loginForm">
+      <input class="field" id="token" type="password" placeholder="APP_TOKEN" autocomplete="current-password"/>
+      <button class="btn primary" type="submit">登入</button>
+    </form>
+  </section>
+
+  <div id="home" hidden>
+    <section class="board" id="board" aria-live="polite"></section>
+    <div class="health" id="health"></div>
+    <section class="sched">
+      <h2>賽程 <span id="count"></span></h2>
+      <div id="list"></div>
+    </section>
+  </div>
+  <p class="foot">Match Alerts 2.0</p>
+</main>
+
+<!-- Manage sheet -->
+<dialog class="sheet" id="manage" aria-label="管理">
+  <div class="sheet-head"><h3>管理</h3><button class="icon" data-close aria-label="關閉"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+  <div class="seg" role="tablist" id="seg">
+    <button role="tab" data-tab="import" aria-selected="true">匯入</button>
+    <button role="tab" data-tab="edit" aria-selected="false">編輯</button>
+    <button role="tab" data-tab="alerts" aria-selected="false">通知</button>
+    <button role="tab" data-tab="settings" aria-selected="false">設定</button>
+  </div>
+  <div class="sheet-body">
+    <div class="pane" data-pane="import">
+      <h4>上載檔案</h4>
+      <label class="drop" for="file"><b>揀 CSV 或 Excel 檔</b>.csv · .xlsx · .xls<input id="file" type="file" accept=".csv,.tsv,.txt,.xlsx,.xls"/></label>
+      <div id="sheetPickRow" hidden><label for="sheetPick">工作表</label><select class="field" id="sheetPick"></select></div>
+
+      <h4>貼上</h4>
+      <p>由 Excel 或 Google Sheet 複製幾行貼落嚟都得。</p>
+      <textarea class="field" id="csv" rows="4" style="margin-top:8px" placeholder="Date,Time,Home,Away,Channel&#10;27/10/2026,11:45 AM,NT,QLD,4"></textarea>
+      <div class="actions"><button class="btn small" id="parsePaste">預覽</button></div>
+
+      <h4>Google Sheet</h4>
+      <p>Sheet 要設定為「知道連結的任何人都可以檢視」。</p>
+      <input class="field" id="sheetUrl" type="url" style="margin-top:8px" placeholder="https://docs.google.com/spreadsheets/d/…"/>
+      <label class="check"><input type="checkbox" id="autoSync"/> 每 15 分鐘自動同步</label>
+      <div class="actions"><button class="btn small primary" id="syncNow">立即同步</button><button class="btn small ghost" id="saveSheet">只儲存連結</button></div>
+      <p class="hint" id="syncInfo" style="margin-top:8px"></p>
+
+      <div class="preview" id="preview" hidden>
+        <h4 id="previewTitle" style="margin-top:0"></h4>
+        <div class="warn" id="previewErr"></div>
+        <div id="previewList"></div>
+        <div class="actions"><button class="btn primary" id="confirmImport">用呢個賽程取代現有</button><button class="btn ghost" id="cancelImport">取消</button></div>
+      </div>
+    </div>
+
+    <div class="pane" data-pane="edit" hidden>
+      <p>時間以設定入面嘅時區計。</p>
+      <div id="editRows"></div>
+      <div class="actions"><button class="btn small ghost" id="add">新增比賽</button><button class="btn small primary" id="save">儲存賽程</button></div>
+    </div>
+
+    <div class="pane" data-pane="alerts" hidden>
+      <h4>呢部裝置</h4>
+      <p id="subState">檢查緊…</p>
+      <div class="actions"><button class="btn small primary" id="notify">開啟通知</button><button class="btn small" id="test">即時測試</button><button class="btn small" id="testLater">2 分鐘後測試</button></div>
+      <p class="hint" style="margin-top:8px">「2 分鐘後測試」撳完即刻關 App 鎖機，用嚟確認背景都收到。</p>
+      <h4>最近紀錄</h4>
+      <ul class="log" id="log"></ul>
+    </div>
+
+    <div class="pane" data-pane="settings" hidden>
+      <div class="grid2">
+        <div><label for="sEyebrow">賽事名稱</label><input class="field" id="sEyebrow" placeholder="SSA MAG2"/></div>
+        <div><label for="sTitle">App 標題</label><input class="field" id="sTitle" placeholder="Match Alerts"/></div>
+        <div><label for="sMinutes">提前幾多分鐘提醒</label><input class="field" id="sMinutes" type="number" min="1" max="180" inputmode="numeric"/></div>
+        <div><label for="sChannel">第三欄名稱</label><input class="field" id="sChannel" placeholder="Channel / Court / 場地"/></div>
+        <div><label for="sEmoji">通知 emoji</label><input class="field" id="sEmoji" placeholder="🏀"/></div>
+        <div><label for="sTz">時區</label><select class="field" id="sTz">
+          <option>Australia/Sydney</option><option>Australia/Melbourne</option><option>Australia/Brisbane</option><option>Australia/Adelaide</option><option>Australia/Darwin</option><option>Australia/Perth</option><option>Australia/Hobart</option><option>Pacific/Auckland</option><option>Asia/Hong_Kong</option><option>Asia/Tokyo</option><option>Europe/London</option><option>America/Los_Angeles</option><option>UTC</option>
+        </select></div>
+      </div>
+      <p class="hint" style="margin-top:10px">改時區唔會郁已儲存比賽嘅實際時間。</p>
+      <div class="actions"><button class="btn primary" id="saveSettings">儲存設定</button><button class="btn ghost" id="logout">登出呢部裝置</button></div>
+    </div>
+  </div>
+</dialog>
+
+<!-- Help sheet -->
+<dialog class="sheet" id="help" aria-label="說明">
+  <div class="sheet-head"><h3>說明</h3><button class="icon" data-close aria-label="關閉"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+  <div class="sheet-body pane">
+    <h4>喺 iPhone 安裝</h4>
+    <ol class="steps">
+      <li>用 Safari 開呢個網址</li>
+      <li>分享 → 加入主畫面</li>
+      <li>由主畫面打開，輸入管理密碼</li>
+      <li>管理 → 通知 → 開啟通知 → 允許</li>
+      <li>撳「2 分鐘後測試」，關 App，等通知</li>
+    </ol>
+    <h4>提醒點運作</h4>
+    <p>伺服器每分鐘檢查一次，喺開賽前設定嘅分鐘數發出通知，App 關咗都收到。每場只發一次；改咗開賽時間會重新提醒。專注模式或者勿擾模式可能會收埋通知。</p>
+    <h4>匯入格式</h4>
+    <p>第一行可以係標題：<code>Date</code> <code>Time</code> <code>Home</code> <code>Away</code> <code>Channel</code> <code>Reminder</code> <code>Note</code>，中文都得（日期、時間、主隊、客隊、場地、提醒、備註）。亦可以用一欄 <code>Match</code> 寫「QLD vs FN」。</p>
+    <p style="margin-top:8px">日期：<code>27/10/2026</code> <code>2026-10-27</code> <code>Tue 27 Oct</code> <code>10月27日</code>（日先月後）。時間：<code>11:45</code> <code>11:45 AM</code> <code>3.45pm</code>。Reminder 寫 <code>no</code> 或者 <code>關</code> 就唔提醒。</p>
+    <p style="margin-top:8px">冇標題行都得：<code>2026-10-27 11:45,NT,QLD,4</code></p>
+    <h4>Google Sheet</h4>
+    <p>共用 → 一般存取權 → 知道連結的任何人 → 檢視者。有幾個分頁嘅話，打開要用嗰個分頁再複製網址。開咗自動同步，改 Sheet 之後 15 分鐘內 App 會跟住更新；讀唔到 Sheet 嗰陣唔會清走現有賽程。</p>
+  </div>
+</dialog>
+
+<div class="toast" id="toast" role="status"></div>
+
+<script type="module">
+import { textToTable, parseTable, isoToZonedInput, zonedToIso, sheetCsvUrl } from '/parse.js';
+
+const $ = (id) => document.getElementById(id);
+const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const BELL = '<svg class="bell" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M6 16V11a6 6 0 1 1 12 0v5l1.5 2h-15z"/><path d="M10 20.5a2 2 0 0 0 4 0"/></svg>';
+const BELL_OFF = '<svg class="bell" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" opacity=".55"><path d="M6 16V11a6 6 0 0 1 9.5-4.9M18 11v5l1.5 2H9"/><path d="M4 4l16 16"/></svg>';
+
+let matches = [], pending = null, settings = null, status = null, subscribed = null;
+let config = { timezone: 'Australia/Sydney', offsetMinutes: 20, channelLabel: 'Channel', title: 'Match Alerts', eyebrow: '' };
+
+const tokenStore = {
+  get() { try { return localStorage.getItem('ssa_token') || ''; } catch { return ''; } },
+  set(v) { try { v ? localStorage.setItem('ssa_token', v) : localStorage.removeItem('ssa_token'); } catch {} },
+};
+let token = tokenStore.get();
+
+let toastTimer;
+function toast(text, err = false) {
+  const t = $('toast'); t.textContent = text; t.classList.toggle('err', err); t.classList.add('show');
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), err ? 5000 : 2800);
+}
+const fail = (e) => toast(e.message || String(e), true);
+
+const tz = () => config.timezone || 'Australia/Sydney';
+const fmtParts = (iso, opts) => new Intl.DateTimeFormat('en-AU', { timeZone: tz(), ...opts }).format(new Date(iso));
+const fmtFull = (iso) => fmtParts(iso, { weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit', hour12: true });
+const fmtDay = (iso) => fmtParts(iso, { weekday: 'long', day: 'numeric', month: 'long' });
+const fmtClock = (iso) => fmtParts(iso, { hour: 'numeric', minute: '2-digit', hour12: true }).replace(/\s?(am|pm)/i, '');
+const fmtAmPm = (iso) => (fmtParts(iso, { hour: 'numeric', hour12: true }).match(/am|pm/i) || [''])[0].toLowerCase();
+const dayKey = (iso) => fmtParts(iso, { year: 'numeric', month: '2-digit', day: '2-digit' });
+
+async function api(url, opts = {}) {
+  const r = await fetch(url, { ...opts, headers: { 'content-type': 'application/json', 'x-app-token': token, ...(opts.headers || {}) } });
+  let j = {}; try { j = await r.json(); } catch {}
+  if (r.status === 401) { showGate(); throw Error('密碼唔啱，請重新輸入'); }
+  if (!r.ok) throw Error(j.error || `出錯（${r.status}）`);
+  return j;
+}
+
+// ---------- Home ----------
+function applyConfig() {
+  $('eyebrow').textContent = config.eyebrow || '';
+  $('title').textContent = config.title || 'Match Alerts';
+  document.title = config.title || 'Match Alerts';
+}
+
+function nextMatch() {
+  const now = Date.now();
+  return matches.filter((m) => Date.parse(m.at) > now).sort((a, b) => Date.parse(a.at) - Date.parse(b.at))[0] || null;
+}
+
+function pad(n) { return String(n).padStart(2, '0'); }
+function countdown(ms) {
+  if (ms <= 0) return '00:00';
+  const s = Math.floor(ms / 1000), d = Math.floor(s / 86400), h = Math.floor((s % 86400) / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60;
+  if (d >= 1) return `${d}<small>日</small> ${pad(h)}<small>時</small>`;
+  if (h >= 1) return `${h}:${pad(m)}<small>:${pad(sec)}</small>`;
+  return `${pad(m)}:${pad(sec)}`;
+}
+
+function renderBoard() {
+  const m = nextMatch();
+  const b = $('board');
+  if (!m) {
+    b.className = 'board empty';
+    b.innerHTML = `<div class="board-meta"><span>下一場</span></div><div class="teams">未有比賽</div><div class="clock"><div class="clock-label">去「管理 → 匯入」加入賽程</div></div>`;
+    return;
+  }
+  b.className = 'board';
+  const now = Date.now(), kick = Date.parse(m.at), alertAt = kick - config.offsetMinutes * 60000;
+  const before = now < alertAt;
+  const label = !m.enabled ? '呢場冇提醒<br>距離開賽' : before ? `提醒會喺 ${esc(fmtClock(new Date(alertAt).toISOString()))}${fmtAmPm(new Date(alertAt).toISOString())} 發出<br>距離提醒` : '已經提醒咗<br>距離開賽';
+  const target = m.enabled && before ? alertAt : kick;
+  b.innerHTML = `<div class="board-meta"><span><b>${esc(fmtFull(m.at))}</b>${m.note ? ' &nbsp;' + esc(m.note) : ''}</span>${m.channel ? `<span class="court">${esc(config.channelLabel)} ${esc(m.channel)}</span>` : ''}</div>
+    <div class="teams">${esc(m.home)}${m.away ? `<span class="vs">對</span>${esc(m.away)}` : ''}</div>
+    <div class="clock"><div class="clock-label">${label}</div><div class="digits" id="digits">${countdown(target - now)}</div></div>`;
+  b.dataset.target = target;
+}
+setInterval(() => {
+  const b = $('board'); if (!b.dataset.target || $('home').hidden) return;
+  const left = Number(b.dataset.target) - Date.now();
+  if (left <= 0) { renderBoard(); renderList(); return; }
+  const d = $('digits'); if (d) d.innerHTML = countdown(left);
+}, 1000);
+
+function renderHealth() {
+  const h = $('health');
+  if (!status) { h.innerHTML = ''; return; }
+  const ago = status.lastTick ? (Date.now() - Date.parse(status.lastTick)) / 60000 : Infinity;
+  const serverOk = ago < 3;
+  if (subscribed === false) {
+    h.innerHTML = `<span><span class="dot warn"></span>呢部裝置未開通知</span><button class="btn small primary" id="quickNotify">開啟通知</button>`;
+    $('quickNotify').onclick = enableNotifications;
+    return;
+  }
+  const dot = !serverOk ? 'bad' : status.devices ? 'ok' : 'warn';
+  const text = !serverOk ? '伺服器暫時冇回應' : `提醒已啟動 · ${status.devices} 部裝置`;
+  h.innerHTML = `<span><span class="dot ${dot}"></span>${text}</span><span>${serverOk ? '每分鐘檢查' : ''}</span>`;
+}
+
+function renderList() {
+  const now = Date.now();
+  const sorted = matches.slice().sort((a, b) => Date.parse(a.at) - Date.parse(b.at));
+  const upcoming = sorted.filter((m) => Date.parse(m.at) >= now).length;
+  $('count').textContent = sorted.length ? `${upcoming} 場未開賽 / 共 ${sorted.length} 場` : '';
+  if (!sorted.length) { $('list').innerHTML = '<p class="hint" style="padding:14px 0">未有賽程。去右上角「管理」匯入。</p>'; return; }
+  let html = '', last = '';
+  for (const m of sorted) {
+    const k = dayKey(m.at);
+    if (k !== last) { html += `<div class="day">${esc(fmtDay(m.at))}</div>`; last = k; }
+    const past = Date.parse(m.at) < now;
+    html += `<div class="game${past ? ' past' : ''}${m.enabled ? '' : ' off'}">
+      <div class="t">${esc(fmtClock(m.at))}<small>${fmtAmPm(m.at)}</small></div>
+      <div><div class="vs-line">${esc(m.home)}${m.away ? `<i>對</i>${esc(m.away)}` : ''}</div>${m.note ? `<div class="sub">${esc(m.note)}</div>` : ''}</div>
+      <div class="r">${m.channel ? `<span class="court" style="font-size:13px;padding:4px 7px">${esc(m.channel)}</span>` : ''}<span aria-label="${m.enabled ? '有提醒' : '冇提醒'}">${m.enabled ? BELL : BELL_OFF}</span></div>
+    </div>`;
+  }
+  $('list').innerHTML = html;
+}
+
+function renderHome() { renderBoard(); renderList(); renderHealth(); }
+
+function showGate() { $('gate').hidden = false; $('home').hidden = true; $('openManage').hidden = true; }
+function showHome() { $('gate').hidden = true; $('home').hidden = false; $('openManage').hidden = false; }
+
+async function loadAll() {
+  [matches, settings] = await Promise.all([api('/api/matches'), api('/api/settings')]);
+  showHome(); renderHome(); fillSettings();
+  refreshStatus();
+}
+async function refreshStatus() {
+  try { status = await api('/api/status'); } catch { status = null; }
+  await checkSubscription();
+  renderHealth(); renderLog();
+}
+
+$('loginForm').onsubmit = async (e) => {
+  e.preventDefault();
+  token = $('token').value.trim(); if (!token) return;
+  try { await loadAll(); tokenStore.set(token); toast('已登入'); } catch (err) { fail(err); }
+};
+
+// ---------- Notifications ----------
+const swReady = 'serviceWorker' in navigator ? navigator.serviceWorker.register('/sw.js').then(() => navigator.serviceWorker.ready) : Promise.reject(Error('no sw'));
+swReady.catch(() => {});
+
+async function checkSubscription() {
+  try {
+    if (!('PushManager' in window)) { subscribed = null; $('subState').textContent = 'iPhone 要先「加入主畫面」，再由主畫面打開先可以開通知。'; return; }
+    const reg = await swReady; const sub = await reg.pushManager.getSubscription();
+    subscribed = !!sub && Notification.permission === 'granted';
+    $('subState').textContent = subscribed ? `通知已開啟。總共 ${status?.devices ?? '—'} 部裝置會收到提醒。` : Notification.permission === 'denied' ? '通知被封鎖咗。去 iPhone 設定 → 通知 → 呢個 App → 允許通知。' : '呢部裝置未開通知。';
+    $('notify').textContent = subscribed ? '重新登記' : '開啟通知';
+  } catch { subscribed = null; }
+}
+
+async function enableNotifications() {
+  try {
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) throw Error('iPhone 要先加入主畫面，再由主畫面打開');
+    if (!config.publicKey) throw Error('伺服器未設定推送密鑰');
+    const permission = await Notification.requestPermission(); // must be the first await on iOS
+    if (permission !== 'granted') throw Error('未允許通知');
+    const reg = await swReady;
+    const key = Uint8Array.from(atob(config.publicKey.replace(/-/g, '+').replace(/_/g, '/')), (c) => c.charCodeAt(0));
+    const sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: key });
+    await api('/api/subscribe', { method: 'POST', body: JSON.stringify(sub) });
+    toast('通知已開啟');
+    refreshStatus();
+  } catch (e) { fail(e); }
+}
+$('notify').onclick = enableNotifications;
+$('test').onclick = async () => { try { const r = await api('/api/test', { method: 'POST' }); toast(`已送出到 ${r.delivered} 部裝置${r.failed ? `，${r.failed} 部失敗` : ''}`); refreshStatus(); } catch (e) { fail(e); } };
+$('testLater').onclick = async () => { try { const r = await api('/api/test?delay=2', { method: 'POST' }); toast(`約 ${fmtClock(r.scheduled)}${fmtAmPm(r.scheduled)} 發出。依家可以關 App。`); } catch (e) { fail(e); } };
+
+const LOG_LABEL = { reminder: '提醒', test: '測試', 'test-delayed': '背景測試', 'test-scheduled': '排程測試', subscribe: '登記裝置', sync: '同步 Sheet' };
+function renderLog() {
+  const items = (status?.log || []).slice(0, 8);
+  $('log').innerHTML = items.map((l) => {
+    const what = l.match ? `${LOG_LABEL[l.type] || l.type}：${l.match}` : LOG_LABEL[l.type] || l.type;
+    const res = l.error ? `<span style="color:var(--danger)">失敗</span>` : l.delivered !== undefined ? `${l.delivered} 部收到` : l.count !== undefined ? `${l.count} 場` : '';
+    return `<li><span>${esc(what)}<br><span style="color:var(--faint)">${esc(fmtFull(l.t))}</span></span><span>${res}</span></li>`;
+  }).join('') || '<li>暫時冇紀錄</li>';
+  const ls = status?.lastSync;
+  $('syncInfo').textContent = ls ? `上次同步：${fmtFull(ls.t)}，${ls.count} 場` : '';
+}
+
+// ---------- Sheets (dialogs) ----------
+function openSheet(id) { const d = $(id); if (!d.open) d.showModal(); }
+document.querySelectorAll('dialog.sheet').forEach((d) => {
+  d.addEventListener('click', (e) => { if (e.target === d || e.target.closest('[data-close]')) d.close(); });
+});
+$('openHelp').onclick = () => openSheet('help');
+$('openManage').onclick = () => { renderEdit(); openSheet('manage'); refreshStatus(); };
+function selectTab(t) {
+  document.querySelectorAll('#seg button').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.tab === t)));
+  document.querySelectorAll('#manage [data-pane]').forEach((p) => { p.hidden = p.dataset.pane !== t; });
+}
+$('seg').onclick = (e) => { const t = e.target.dataset.tab; if (t) selectTab(t); };
+
+// ---------- Import ----------
+function previewCard(m) {
+  return `<div class="game"><div class="t">${esc(fmtClock(m.at))}<small>${fmtAmPm(m.at)}</small></div>
+    <div><div class="vs-line">${esc(m.home)}${m.away ? `<i>對</i>${esc(m.away)}` : ''}</div><div class="sub">${esc(fmtParts(m.at, { weekday: 'short', day: 'numeric', month: 'short' }))}${m.note ? ' · ' + esc(m.note) : ''}</div></div>
+    <div class="r">${m.channel ? `<span class="court" style="font-size:13px;padding:4px 7px">${esc(m.channel)}</span>` : ''}${m.enabled ? BELL : BELL_OFF}</div></div>`;
+}
+function showPreview(result, source) {
+  pending = result.matches;
+  $('preview').hidden = false;
+  $('previewTitle').textContent = `${source}：讀到 ${result.matches.length} 場`;
+  $('previewErr').textContent = result.errors.length ? `${result.errors.length} 行讀唔到，會略過：\n` + result.errors.slice(0, 6).join('\n') + (result.errors.length > 6 ? '\n…' : '') : '';
+  $('previewList').innerHTML = result.matches.slice(0, 50).map(previewCard).join('') + (result.matches.length > 50 ? `<p class="hint">仲有 ${result.matches.length - 50} 場</p>` : '');
+  $('confirmImport').disabled = !result.matches.length;
+  $('preview').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+$('cancelImport').onclick = () => { pending = null; $('preview').hidden = true; };
+$('confirmImport').onclick = async () => {
+  if (!pending) return;
+  try {
+    await api('/api/matches', { method: 'PUT', body: JSON.stringify({ matches: pending }) });
+    matches = pending; pending = null; $('preview').hidden = true;
+    renderHome(); renderEdit(); $('manage').close(); toast(`已匯入 ${matches.length} 場`); refreshStatus();
+  } catch (e) { fail(e); }
+};
+$('parsePaste').onclick = () => showPreview(parseTable(textToTable($('csv').value), { tz: tz() }), '貼上內容');
+
+let workbook = null;
+async function loadXLSX() {
+  if (window.XLSX) return window.XLSX;
+  await new Promise((ok, no) => { const s = document.createElement('script'); s.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js'; s.onload = ok; s.onerror = () => no(Error('Excel 讀取器載入失敗，請檢查網絡')); document.head.appendChild(s); });
+  return window.XLSX;
+}
+function previewWorkbookSheet(name) {
+  const rows = window.XLSX.utils.sheet_to_json(workbook.Sheets[name], { header: 1, raw: true, defval: '' });
+  showPreview(parseTable(rows, { tz: tz() }), name);
+}
+$('file').onchange = async () => {
+  const f = $('file').files[0]; if (!f) return;
+  $('sheetPickRow').hidden = true;
+  try {
+    if (/\.(xlsx|xls)$/i.test(f.name)) {
+      const XLSX = await loadXLSX();
+      workbook = XLSX.read(await f.arrayBuffer(), { type: 'array' });
+      if (workbook.SheetNames.length > 1) { $('sheetPick').innerHTML = workbook.SheetNames.map((n) => `<option>${esc(n)}</option>`).join(''); $('sheetPickRow').hidden = false; }
+      previewWorkbookSheet(workbook.SheetNames[0]);
+    } else showPreview(parseTable(textToTable(await f.text()), { tz: tz() }), f.name);
+  } catch (e) { fail(e); }
+  $('file').value = '';
+};
+$('sheetPick').onchange = () => previewWorkbookSheet($('sheetPick').value);
+
+async function saveSheetSettings() {
+  const url = $('sheetUrl').value.trim();
+  if (url && !sheetCsvUrl(url)) throw Error('呢個唔似 Google Sheet 連結');
+  settings = (await api('/api/settings', { method: 'PUT', body: JSON.stringify({ sheetUrl: url, autoSync: $('autoSync').checked }) })).settings;
+  return url;
+}
+$('saveSheet').onclick = async () => { try { const u = await saveSheetSettings(); toast(u ? '已儲存連結' : '已移除連結'); } catch (e) { fail(e); } };
+$('syncNow').onclick = async () => {
+  try {
+    if (!(await saveSheetSettings())) throw Error('請先貼上 Google Sheet 連結');
+    $('syncNow').disabled = true; $('syncNow').textContent = '同步緊…';
+    const r = await api('/api/sync', { method: 'POST' });
+    matches = await api('/api/matches'); renderHome(); renderEdit();
+    toast(`已同步 ${r.count} 場${r.errors.length ? `，${r.errors.length} 行略過` : ''}`); refreshStatus();
+  } catch (e) { fail(e); } finally { $('syncNow').disabled = false; $('syncNow').textContent = '立即同步'; }
+};
+
+// ---------- Edit ----------
+function renderEdit() {
+  const ch = esc(config.channelLabel);
+  $('editRows').innerHTML = matches.slice().sort((a, b) => Date.parse(a.at) - Date.parse(b.at)).map((m) => `<div class="edit" data-id="${esc(m.id)}">
+    <div class="f3"><input class="field" data-f="home" value="${esc(m.home)}" placeholder="主隊" aria-label="主隊"/><input class="field" data-f="away" value="${esc(m.away)}" placeholder="客隊" aria-label="客隊"/><input class="field" data-f="channel" value="${esc(m.channel)}" placeholder="${ch}" aria-label="${ch}"/></div>
+    <div class="f2"><input class="field" data-f="at" type="datetime-local" value="${isoToZonedInput(m.at, tz())}" aria-label="開賽時間"/><label class="mini"><input type="checkbox" data-f="enabled" ${m.enabled ? 'checked' : ''}/>提醒</label><button class="del" data-del>刪除</button></div>
+    <input class="field" data-f="note" value="${esc(m.note)}" placeholder="備註（可留空）" aria-label="備註" style="margin-top:8px"/>
+  </div>`).join('') || '<p class="hint" style="margin-top:12px">未有比賽。</p>';
+}
+function collect() {
+  return [...document.querySelectorAll('#editRows .edit')].map((el) => {
+    const base = matches.find((m) => m.id === el.dataset.id) || {};
+    const v = (k) => el.querySelector(`[data-f="${k}"]`);
+    const mm = /^(\d{4})-(\d\d)-(\d\d)T(\d\d):(\d\d)$/.exec(v('at').value);
+    if (!mm) throw Error('有場比賽冇填時間');
+    return { ...base, id: base.id || crypto.randomUUID(), home: v('home').value.trim(), away: v('away').value.trim(), channel: v('channel').value.trim(), note: v('note').value.trim(), enabled: v('enabled').checked, at: zonedToIso({ y: +mm[1], m: +mm[2], d: +mm[3], h: +mm[4], mi: +mm[5] }, tz()) };
+  });
+}
+$('editRows').onclick = (e) => { if (e.target.closest('[data-del]')) e.target.closest('.edit').remove(); };
+$('add').onclick = () => {
+  const id = crypto.randomUUID();
+  const at = new Date(Math.ceil((Date.now() + 86400000) / 3600000) * 3600000).toISOString();
+  matches.push({ id, at, home: '', away: '', channel: '', note: '', enabled: true, _new: true });
+  const keep = collect().filter((m) => m.id !== id);
+  matches = [...keep, matches[matches.length - 1]];
+  renderEdit();
+  const row = document.querySelector(`#editRows .edit[data-id="${id}"]`); row?.scrollIntoView({ behavior: 'smooth', block: 'center' }); row?.querySelector('input')?.focus();
+};
+$('save').onclick = async () => {
+  try {
+    const rows = collect().map(({ _new, ...m }) => m);
+    if (rows.some((m) => !m.home)) throw Error('有場比賽未填主隊');
+    await api('/api/matches', { method: 'PUT', body: JSON.stringify({ matches: rows }) });
+    matches = rows; renderHome(); renderEdit(); toast(`已儲存 ${rows.length} 場`); refreshStatus();
+  } catch (e) { fail(e); }
+};
+
+// ---------- Settings ----------
+function fillSettings() {
+  if (!settings) return;
+  $('sEyebrow').value = settings.eyebrow || '';
+  $('sTitle').value = settings.title || '';
+  $('sMinutes').value = settings.reminderMinutes;
+  $('sChannel').value = settings.channelLabel || '';
+  $('sEmoji').value = settings.emoji || '';
+  if (![...$('sTz').options].some((o) => o.value === settings.timezone)) $('sTz').add(new Option(settings.timezone));
+  $('sTz').value = settings.timezone;
+  $('sheetUrl').value = settings.sheetUrl || '';
+  $('autoSync').checked = !!settings.autoSync;
+}
+$('saveSettings').onclick = async () => {
+  try {
+    settings = (await api('/api/settings', { method: 'PUT', body: JSON.stringify({ eyebrow: $('sEyebrow').value, title: $('sTitle').value, reminderMinutes: Number($('sMinutes').value), channelLabel: $('sChannel').value, emoji: $('sEmoji').value, timezone: $('sTz').value }) })).settings;
+    config = { ...config, eyebrow: settings.eyebrow, title: settings.title, offsetMinutes: settings.reminderMinutes, channelLabel: settings.channelLabel, timezone: settings.timezone };
+    applyConfig(); renderHome(); renderEdit(); refreshStatus(); toast('設定已儲存');
+  } catch (e) { fail(e); }
+};
+$('logout').onclick = () => { token = ''; tokenStore.set(''); $('manage').close(); $('token').value = ''; showGate(); toast('已登出'); };
+
+// ---------- Start ----------
+document.addEventListener('visibilitychange', () => { if (!document.hidden && token && !$('home').hidden) { renderHome(); refreshStatus(); } });
+(async () => {
+  try { config = { ...config, ...(await fetch('/api/config').then((r) => r.json())) }; } catch {}
+  applyConfig();
+  if (!token) { showGate(); return; }
+  try { await loadAll(); } catch (e) { showGate(); fail(e); }
+})();
+</script>
+</body>
+</html>
