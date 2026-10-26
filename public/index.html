@@ -61,7 +61,13 @@ h1{font:600 40px/1 var(--board);letter-spacing:.005em;margin:18px 0 22px}
 .btn.primary{background:var(--amber);color:var(--amber-ink)}
 .btn.small{padding:8px 13px;font-size:14px;border-radius:10px}
 .btn.ghost{background:transparent;border:1px solid var(--line)}
+.btn{transition:background-color .2s,color .2s,transform .1s}
+.btn:active:not(:disabled){transform:scale(.96)}
 .btn:disabled{opacity:.45;cursor:not-allowed}
+.btn.busy,.btn.done{opacity:1}
+.btn.busy::before{content:"";display:inline-block;width:13px;height:13px;margin-right:8px;vertical-align:-2px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:spin .7s linear infinite}
+.btn.done{background:#4ADE80;color:#062B14}
+@keyframes spin{to{transform:rotate(360deg)}}
 
 /* Schedule */
 .sched{margin-top:30px}
@@ -164,7 +170,7 @@ select.field{appearance:none;background-image:linear-gradient(45deg,transparent 
       <div id="list"></div>
     </section>
   </div>
-  <p class="foot">Match Alerts 2.0</p>
+  <p class="foot">Match Alerts 2.1</p>
 </main>
 
 <!-- Manage sheet -->
@@ -278,10 +284,30 @@ let token = tokenStore.get();
 
 let toastTimer;
 function toast(text, err = false) {
-  const t = $('toast'); t.textContent = text; t.classList.toggle('err', err); t.classList.add('show');
+  const t = $('toast');
+  const host = document.querySelector('dialog.sheet[open]') || document.body;
+  if (t.parentNode !== host) host.appendChild(t);
+  t.textContent = text; t.classList.toggle('err', err); t.classList.add('show');
   clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), err ? 5000 : 2800);
 }
 const fail = (e) => toast(e.message || String(e), true);
+
+/** Button feedback: spinner while working, green tick when done, ignores repeat taps. */
+async function act(btn, work, { busy = '處理中…', done = '完成', hold = 1600, after } = {}) {
+  if (btn.dataset.busy) return;
+  const label = btn.textContent;
+  const reset = () => { btn.classList.remove('busy', 'done'); btn.textContent = label; btn.disabled = false; delete btn.dataset.busy; };
+  btn.dataset.busy = '1'; btn.disabled = true; btn.classList.add('busy'); btn.textContent = busy;
+  try {
+    const r = await work(); // work runs synchronously up to its first await (keeps iOS tap permission)
+    btn.classList.remove('busy'); btn.classList.add('done');
+    btn.textContent = '✓ ' + (typeof done === 'function' ? done(r) : done);
+    try { navigator.vibrate?.(12); } catch {}
+    setTimeout(reset, typeof hold === 'function' ? hold(r) : hold);
+    after?.(r);
+    return r;
+  } catch (e) { reset(); fail(e); }
+}
 
 const tz = () => config.timezone || 'Australia/Sydney';
 const fmtParts = (iso, opts) => new Intl.DateTimeFormat('en-AU', { timeZone: tz(), ...opts }).format(new Date(iso));
@@ -416,8 +442,9 @@ async function checkSubscription() {
   } catch { subscribed = null; }
 }
 
-async function enableNotifications() {
-  try {
+async function enableNotifications(e) {
+  const btn = e?.currentTarget instanceof HTMLButtonElement ? e.currentTarget : $('notify');
+  return act(btn, async () => {
     if (!('serviceWorker' in navigator) || !('PushManager' in window)) throw Error('iPhone 要先加入主畫面，再由主畫面打開');
     if (!config.publicKey) throw Error('伺服器未設定推送密鑰');
     const permission = await Notification.requestPermission(); // must be the first await on iOS
@@ -426,13 +453,17 @@ async function enableNotifications() {
     const key = Uint8Array.from(atob(config.publicKey.replace(/-/g, '+').replace(/_/g, '/')), (c) => c.charCodeAt(0));
     const sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: key });
     await api('/api/subscribe', { method: 'POST', body: JSON.stringify(sub) });
-    toast('通知已開啟');
-    refreshStatus();
-  } catch (e) { fail(e); }
+  }, { busy: '開啟緊…', done: '通知已開啟', after: () => refreshStatus() });
 }
 $('notify').onclick = enableNotifications;
-$('test').onclick = async () => { try { const r = await api('/api/test', { method: 'POST' }); toast(`已送出到 ${r.delivered} 部裝置${r.failed ? `，${r.failed} 部失敗` : ''}`); refreshStatus(); } catch (e) { fail(e); } };
-$('testLater').onclick = async () => { try { const r = await api('/api/test?delay=2', { method: 'POST' }); toast(`約 ${fmtClock(r.scheduled)}${fmtAmPm(r.scheduled)} 發出。依家可以關 App。`); } catch (e) { fail(e); } };
+$('test').onclick = (e) => act(e.currentTarget, () => api('/api/test', { method: 'POST' }), {
+  busy: '發送緊…', done: (r) => `已送出 ${r.delivered} 部${r.failed ? `，${r.failed} 部失敗` : ''}`, hold: 2500, after: () => refreshStatus(),
+});
+// Stays locked until the test has fired, so repeat taps can't stack up.
+$('testLater').onclick = (e) => act(e.currentTarget, () => api('/api/test?delay=2', { method: 'POST' }), {
+  busy: '排程緊…', done: (r) => `${fmtClock(r.scheduled)}${fmtAmPm(r.scheduled)} 發出，可以關 App`,
+  hold: (r) => Math.max(2000, Date.parse(r.scheduled) - Date.now() + 60000), after: () => refreshStatus(),
+});
 
 const LOG_LABEL = { reminder: '提醒', test: '測試', 'test-delayed': '背景測試', 'test-scheduled': '排程測試', subscribe: '登記裝置', sync: '同步 Sheet' };
 function renderLog() {
@@ -475,15 +506,18 @@ function showPreview(result, source) {
   $('preview').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 $('cancelImport').onclick = () => { pending = null; $('preview').hidden = true; };
-$('confirmImport').onclick = async () => {
+$('confirmImport').onclick = (e) => {
   if (!pending) return;
-  try {
-    await api('/api/matches', { method: 'PUT', body: JSON.stringify({ matches: pending }) });
-    matches = pending; pending = null; $('preview').hidden = true;
-    renderHome(); renderEdit(); $('manage').close(); toast(`已匯入 ${matches.length} 場`); refreshStatus();
-  } catch (e) { fail(e); }
+  const rows = pending;
+  act(e.currentTarget, () => api('/api/matches', { method: 'PUT', body: JSON.stringify({ matches: rows }) }), {
+    busy: '儲存緊…', done: `已匯入 ${rows.length} 場`, hold: 900,
+    after: () => {
+      matches = rows; pending = null; renderHome(); renderEdit(); refreshStatus();
+      setTimeout(() => { $('preview').hidden = true; $('manage').close(); toast(`已匯入 ${rows.length} 場`); }, 800);
+    },
+  });
 };
-$('parsePaste').onclick = () => showPreview(parseTable(textToTable($('csv').value), { tz: tz() }), '貼上內容');
+$('parsePaste').onclick = () => !$('csv').value.trim() ? fail(Error('請先貼上內容')) : showPreview(parseTable(textToTable($('csv').value), { tz: tz() }), '貼上內容');
 
 let workbook = null;
 async function loadXLSX() {
@@ -516,16 +550,13 @@ async function saveSheetSettings() {
   settings = (await api('/api/settings', { method: 'PUT', body: JSON.stringify({ sheetUrl: url, autoSync: $('autoSync').checked }) })).settings;
   return url;
 }
-$('saveSheet').onclick = async () => { try { const u = await saveSheetSettings(); toast(u ? '已儲存連結' : '已移除連結'); } catch (e) { fail(e); } };
-$('syncNow').onclick = async () => {
-  try {
-    if (!(await saveSheetSettings())) throw Error('請先貼上 Google Sheet 連結');
-    $('syncNow').disabled = true; $('syncNow').textContent = '同步緊…';
-    const r = await api('/api/sync', { method: 'POST' });
-    matches = await api('/api/matches'); renderHome(); renderEdit();
-    toast(`已同步 ${r.count} 場${r.errors.length ? `，${r.errors.length} 行略過` : ''}`); refreshStatus();
-  } catch (e) { fail(e); } finally { $('syncNow').disabled = false; $('syncNow').textContent = '立即同步'; }
-};
+$('saveSheet').onclick = (e) => act(e.currentTarget, saveSheetSettings, { busy: '儲存緊…', done: (u) => (u ? '已儲存' : '已移除') });
+$('syncNow').onclick = (e) => act(e.currentTarget, async () => {
+  if (!(await saveSheetSettings())) throw Error('請先貼上 Google Sheet 連結');
+  const r = await api('/api/sync', { method: 'POST' });
+  matches = await api('/api/matches'); renderHome(); renderEdit(); refreshStatus();
+  return r;
+}, { busy: '同步緊…', done: (r) => `已同步 ${r.count} 場${r.errors.length ? `（${r.errors.length} 行略過）` : ''}`, hold: 2500 });
 
 // ---------- Edit ----------
 function renderEdit() {
@@ -555,14 +586,13 @@ $('add').onclick = () => {
   renderEdit();
   const row = document.querySelector(`#editRows .edit[data-id="${id}"]`); row?.scrollIntoView({ behavior: 'smooth', block: 'center' }); row?.querySelector('input')?.focus();
 };
-$('save').onclick = async () => {
-  try {
-    const rows = collect().map(({ _new, ...m }) => m);
-    if (rows.some((m) => !m.home)) throw Error('有場比賽未填主隊');
-    await api('/api/matches', { method: 'PUT', body: JSON.stringify({ matches: rows }) });
-    matches = rows; renderHome(); renderEdit(); toast(`已儲存 ${rows.length} 場`); refreshStatus();
-  } catch (e) { fail(e); }
-};
+$('save').onclick = (e) => act(e.currentTarget, async () => {
+  const rows = collect().map(({ _new, ...m }) => m);
+  if (rows.some((m) => !m.home)) throw Error('有場比賽未填主隊');
+  await api('/api/matches', { method: 'PUT', body: JSON.stringify({ matches: rows }) });
+  matches = rows; renderHome(); renderEdit(); refreshStatus();
+  return rows.length;
+}, { busy: '儲存緊…', done: (n) => `已儲存 ${n} 場` });
 
 // ---------- Settings ----------
 function fillSettings() {
@@ -577,13 +607,11 @@ function fillSettings() {
   $('sheetUrl').value = settings.sheetUrl || '';
   $('autoSync').checked = !!settings.autoSync;
 }
-$('saveSettings').onclick = async () => {
-  try {
+$('saveSettings').onclick = (e) => act(e.currentTarget, async () => {
     settings = (await api('/api/settings', { method: 'PUT', body: JSON.stringify({ eyebrow: $('sEyebrow').value, title: $('sTitle').value, reminderMinutes: Number($('sMinutes').value), channelLabel: $('sChannel').value, emoji: $('sEmoji').value, timezone: $('sTz').value }) })).settings;
     config = { ...config, eyebrow: settings.eyebrow, title: settings.title, offsetMinutes: settings.reminderMinutes, channelLabel: settings.channelLabel, timezone: settings.timezone };
-    applyConfig(); renderHome(); renderEdit(); refreshStatus(); toast('設定已儲存');
-  } catch (e) { fail(e); }
-};
+    applyConfig(); renderHome(); renderEdit(); refreshStatus();
+}, { busy: '儲存緊…', done: '已儲存', hold: 900, after: () => setTimeout(() => { $('manage').close(); toast('設定已儲存'); }, 750) });
 $('logout').onclick = () => { token = ''; tokenStore.set(''); $('manage').close(); $('token').value = ''; showGate(); toast('已登出'); };
 
 // ---------- Start ----------
