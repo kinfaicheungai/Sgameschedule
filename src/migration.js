@@ -1,86 +1,51 @@
-// One-time schedule replacement: SSA MAG1 football at Arthur Edden Oval (from SSAG05 Newcastle 2026 Master).
-// Applied once by Store.load(); later edits in the app are never overwritten.
-export const MIGRATION_ID = 'mag1-arthur-edden-2026-10-27';
+// One-time schedule replacement (applied once by Store.load(); later edits in the app are never overwritten).
+// SSAG05 Newcastle 2026: Touch (Field #3/#4/#5) + MAG1 Football (Arthur Edden Oval), 29–30 Oct.
+export const MIGRATION_ID = 'touch-and-mag1-2026-10-28';
+// Football muted for now (assigned to touch on 29 Oct); switch back on under 管理 → 場地.
+export const MIGRATION_SETTINGS = { eyebrow: 'SSA Newcastle 2026', mutedVenues: ['Arthur Edden Oval|'] };
 export const MIGRATION_MATCHES = [
- {
-  "id": "m-17p6ea",
-  "at": "2026-10-26T21:00:00.000Z",
-  "home": "NT",
-  "away": "QLD",
-  "channel": "1",
-  "note": "Girls 12U",
-  "enabled": true
- },
- {
-  "id": "m-1lhgyb8",
-  "at": "2026-10-26T22:15:00.000Z",
-  "home": "SA",
-  "away": "NSW",
-  "channel": "3",
-  "note": "Girls 12U",
-  "enabled": true
- },
- {
-  "id": "m-nq8nyi",
-  "at": "2026-10-26T23:30:00.000Z",
-  "home": "VIC",
-  "away": "FN",
-  "channel": "1",
-  "note": "Girls 12U",
-  "enabled": true
- },
- {
-  "id": "m-kz461m",
-  "at": "2026-10-27T00:45:00.000Z",
-  "home": "ACT",
-  "away": "WA",
-  "channel": "3",
-  "note": "Girls 12U",
-  "enabled": true
- },
- {
-  "id": "m-6qffy8",
-  "at": "2026-10-27T02:00:00.000Z",
-  "home": "NSW",
-  "away": "QLD",
-  "channel": "1",
-  "note": "Girls 12U",
-  "enabled": true
- },
- {
-  "id": "m-9nur6k",
-  "at": "2026-10-27T03:15:00.000Z",
-  "home": "SA",
-  "away": "FN",
-  "channel": "3",
-  "note": "Girls 12U",
-  "enabled": true
- },
- {
-  "id": "m-1m2lxbw",
-  "at": "2026-10-27T04:30:00.000Z",
-  "home": "VIC",
-  "away": "WA",
-  "channel": "1",
-  "note": "Girls 12U",
-  "enabled": true
- },
- {
-  "id": "m-yivct3",
-  "at": "2026-10-27T05:45:00.000Z",
-  "home": "NT",
-  "away": "ACT",
-  "channel": "3",
-  "note": "Girls 12U",
-  "enabled": true
- },
  {
   "id": "m-12ggwfz",
   "at": "2026-10-28T21:00:00.000Z",
   "home": "NSW",
   "away": "ACT",
   "channel": "1",
-  "note": "Boys 12U",
+  "venue": "Arthur Edden Oval",
+  "ground": "",
+  "note": "Football · Boys 12U · MAG1",
+  "enabled": true
+ },
+ {
+  "id": "m-3gpgkc",
+  "at": "2026-10-28T22:00:00.000Z",
+  "home": "SA",
+  "away": "WA",
+  "channel": "10",
+  "venue": "Newcastle City Touch",
+  "ground": "Field #3",
+  "note": "Touch · Boys 12U · Round 5 · MAG3",
+  "enabled": true
+ },
+ {
+  "id": "m-1s24z4n",
+  "at": "2026-10-28T22:00:00.000Z",
+  "home": "NSW",
+  "away": "QLD",
+  "channel": "11",
+  "venue": "Newcastle City Touch",
+  "ground": "Field #4",
+  "note": "Touch · Boys 12U · Round 5 · MAG4",
+  "enabled": true
+ },
+ {
+  "id": "m-17hx99q",
+  "at": "2026-10-28T22:00:00.000Z",
+  "home": "ACT",
+  "away": "NT",
+  "channel": "12",
+  "venue": "Newcastle City Touch",
+  "ground": "Field #5",
+  "note": "Touch · Boys 12U · Round 5 · MAG5",
   "enabled": true
  },
  {
@@ -89,7 +54,42 @@ export const MIGRATION_MATCHES = [
   "home": "SA",
   "away": "QLD",
   "channel": "3",
-  "note": "Boys 12U",
+  "venue": "Arthur Edden Oval",
+  "ground": "",
+  "note": "Football · Boys 12U · MAG1",
+  "enabled": true
+ },
+ {
+  "id": "m-y4vval",
+  "at": "2026-10-28T22:50:00.000Z",
+  "home": "SA",
+  "away": "WA",
+  "channel": "14",
+  "venue": "Newcastle City Touch",
+  "ground": "Field #3",
+  "note": "Touch · Girls 12U · Round 5 · MAG3",
+  "enabled": true
+ },
+ {
+  "id": "m-9h9716",
+  "at": "2026-10-28T22:50:00.000Z",
+  "home": "NSW",
+  "away": "QLD",
+  "channel": "15",
+  "venue": "Newcastle City Touch",
+  "ground": "Field #4",
+  "note": "Touch · Girls 12U · Round 5 · MAG4",
+  "enabled": true
+ },
+ {
+  "id": "m-1bb8ilp",
+  "at": "2026-10-28T22:50:00.000Z",
+  "home": "ACT",
+  "away": "NT",
+  "channel": "16",
+  "venue": "Newcastle City Touch",
+  "ground": "Field #5",
+  "note": "Touch · Girls 12U · Round 5 · MAG5",
   "enabled": true
  },
  {
@@ -98,7 +98,75 @@ export const MIGRATION_MATCHES = [
   "home": "FN",
   "away": "WA",
   "channel": "1",
-  "note": "Boys 12U",
+  "venue": "Arthur Edden Oval",
+  "ground": "",
+  "note": "Football · Boys 12U · MAG1",
+  "enabled": true
+ },
+ {
+  "id": "m-175gl14",
+  "at": "2026-10-28T23:40:00.000Z",
+  "home": "SA",
+  "away": "QLD",
+  "channel": "10",
+  "venue": "Newcastle City Touch",
+  "ground": "Field #3",
+  "note": "Touch · Boys 15U · Round 5 · MAG3",
+  "enabled": true
+ },
+ {
+  "id": "m-16gfq97",
+  "at": "2026-10-28T23:40:00.000Z",
+  "home": "NSW",
+  "away": "VIC",
+  "channel": "11",
+  "venue": "Newcastle City Touch",
+  "ground": "Field #4",
+  "note": "Touch · Boys 15U · Round 5 · MAG4",
+  "enabled": true
+ },
+ {
+  "id": "m-szvpnr",
+  "at": "2026-10-28T23:40:00.000Z",
+  "home": "ACT",
+  "away": "WA",
+  "channel": "12",
+  "venue": "Newcastle City Touch",
+  "ground": "Field #5",
+  "note": "Touch · Boys 15U · Round 5 · MAG5",
+  "enabled": true
+ },
+ {
+  "id": "m-1ns0ed7",
+  "at": "2026-10-29T00:30:00.000Z",
+  "home": "SA",
+  "away": "QLD",
+  "channel": "14",
+  "venue": "Newcastle City Touch",
+  "ground": "Field #3",
+  "note": "Touch · Girls 15U · Round 5 · MAG3",
+  "enabled": true
+ },
+ {
+  "id": "m-1ivp9ga",
+  "at": "2026-10-29T00:30:00.000Z",
+  "home": "NSW",
+  "away": "VIC",
+  "channel": "15",
+  "venue": "Newcastle City Touch",
+  "ground": "Field #4",
+  "note": "Touch · Girls 15U · Round 5 · MAG4",
+  "enabled": true
+ },
+ {
+  "id": "m-1sshtqg",
+  "at": "2026-10-29T00:30:00.000Z",
+  "home": "ACT",
+  "away": "WA",
+  "channel": "16",
+  "venue": "Newcastle City Touch",
+  "ground": "Field #5",
+  "note": "Touch · Girls 15U · Round 5 · MAG5",
   "enabled": true
  },
  {
@@ -107,7 +175,42 @@ export const MIGRATION_MATCHES = [
   "home": "VIC",
   "away": "NT",
   "channel": "3",
-  "note": "Boys 12U",
+  "venue": "Arthur Edden Oval",
+  "ground": "",
+  "note": "Football · Boys 12U · MAG1",
+  "enabled": true
+ },
+ {
+  "id": "m-1fjle31",
+  "at": "2026-10-29T01:20:00.000Z",
+  "home": "QLD",
+  "away": "WA",
+  "channel": "10",
+  "venue": "Newcastle City Touch",
+  "ground": "Field #3",
+  "note": "Touch · Boys 12U · Round 6 · MAG3",
+  "enabled": true
+ },
+ {
+  "id": "m-31op88",
+  "at": "2026-10-29T01:20:00.000Z",
+  "home": "NSW",
+  "away": "SA",
+  "channel": "11",
+  "venue": "Newcastle City Touch",
+  "ground": "Field #4",
+  "note": "Touch · Boys 12U · Round 6 · MAG4",
+  "enabled": true
+ },
+ {
+  "id": "m-1p8nr8u",
+  "at": "2026-10-29T01:20:00.000Z",
+  "home": "ACT",
+  "away": "VIC",
+  "channel": "12",
+  "venue": "Newcastle City Touch",
+  "ground": "Field #5",
+  "note": "Touch · Boys 12U · Round 6 · MAG5",
   "enabled": true
  },
  {
@@ -116,7 +219,75 @@ export const MIGRATION_MATCHES = [
   "home": "QLD",
   "away": "ACT",
   "channel": "1",
-  "note": "Boys 12U",
+  "venue": "Arthur Edden Oval",
+  "ground": "",
+  "note": "Football · Boys 12U · MAG1",
+  "enabled": true
+ },
+ {
+  "id": "m-1frjnt",
+  "at": "2026-10-29T02:10:00.000Z",
+  "home": "QLD",
+  "away": "WA",
+  "channel": "14",
+  "venue": "Newcastle City Touch",
+  "ground": "Field #3",
+  "note": "Touch · Girls 12U · Round 6 · MAG3",
+  "enabled": true
+ },
+ {
+  "id": "m-pt83to",
+  "at": "2026-10-29T02:10:00.000Z",
+  "home": "NSW",
+  "away": "SA",
+  "channel": "15",
+  "venue": "Newcastle City Touch",
+  "ground": "Field #4",
+  "note": "Touch · Girls 12U · Round 6 · MAG4",
+  "enabled": true
+ },
+ {
+  "id": "m-11gn64q",
+  "at": "2026-10-29T02:10:00.000Z",
+  "home": "ACT",
+  "away": "VIC",
+  "channel": "16",
+  "venue": "Newcastle City Touch",
+  "ground": "Field #5",
+  "note": "Touch · Girls 12U · Round 6 · MAG5",
+  "enabled": true
+ },
+ {
+  "id": "m-t2kr5p",
+  "at": "2026-10-29T03:00:00.000Z",
+  "home": "5th",
+  "away": "6th",
+  "channel": "10",
+  "venue": "Newcastle City Touch",
+  "ground": "Field #3",
+  "note": "Touch · Boys 15U · Semi Final · MAG3 · 隊伍當日決定",
+  "enabled": true
+ },
+ {
+  "id": "m-tpqczr",
+  "at": "2026-10-29T03:00:00.000Z",
+  "home": "2nd",
+  "away": "3rd",
+  "channel": "11",
+  "venue": "Newcastle City Touch",
+  "ground": "Field #4",
+  "note": "Touch · Boys 15U · SF 2 · MAG4 · 隊伍當日決定",
+  "enabled": true
+ },
+ {
+  "id": "m-1hinwk0",
+  "at": "2026-10-29T03:00:00.000Z",
+  "home": "1st",
+  "away": "4th",
+  "channel": "12",
+  "venue": "Newcastle City Touch",
+  "ground": "Field #5",
+  "note": "Touch · Boys 15U · SF 1 · MAG5 · 隊伍當日決定",
   "enabled": true
  },
  {
@@ -125,7 +296,42 @@ export const MIGRATION_MATCHES = [
   "home": "SA",
   "away": "WA",
   "channel": "3",
-  "note": "Boys 12U",
+  "venue": "Arthur Edden Oval",
+  "ground": "",
+  "note": "Football · Boys 12U · MAG1",
+  "enabled": true
+ },
+ {
+  "id": "m-9piv40",
+  "at": "2026-10-29T03:50:00.000Z",
+  "home": "5th",
+  "away": "6th",
+  "channel": "14",
+  "venue": "Newcastle City Touch",
+  "ground": "Field #3",
+  "note": "Touch · Girls 15U · Semi Final · MAG3 · 隊伍當日決定",
+  "enabled": true
+ },
+ {
+  "id": "m-1vaqar2",
+  "at": "2026-10-29T03:50:00.000Z",
+  "home": "2nd",
+  "away": "3rd",
+  "channel": "15",
+  "venue": "Newcastle City Touch",
+  "ground": "Field #4",
+  "note": "Touch · Girls 15U · SF 2 · MAG4 · 隊伍當日決定",
+  "enabled": true
+ },
+ {
+  "id": "m-1521r89",
+  "at": "2026-10-29T03:50:00.000Z",
+  "home": "1st",
+  "away": "4th",
+  "channel": "16",
+  "venue": "Newcastle City Touch",
+  "ground": "Field #5",
+  "note": "Touch · Girls 15U · SF 1 · MAG5 · 隊伍當日決定",
   "enabled": true
  },
  {
@@ -134,7 +340,9 @@ export const MIGRATION_MATCHES = [
   "home": "NSW",
   "away": "VIC",
   "channel": "1",
-  "note": "Boys 12U",
+  "venue": "Arthur Edden Oval",
+  "ground": "",
+  "note": "Football · Boys 12U · MAG1",
   "enabled": true
  },
  {
@@ -143,7 +351,9 @@ export const MIGRATION_MATCHES = [
   "home": "FN",
   "away": "NT",
   "channel": "3",
-  "note": "Boys 12U",
+  "venue": "Arthur Edden Oval",
+  "ground": "",
+  "note": "Football · Boys 12U · MAG1",
   "enabled": true
  },
  {
@@ -152,7 +362,75 @@ export const MIGRATION_MATCHES = [
   "home": "SA",
   "away": "ACT",
   "channel": "1",
-  "note": "Girls 12U",
+  "venue": "Arthur Edden Oval",
+  "ground": "",
+  "note": "Football · Girls 12U · MAG1",
+  "enabled": true
+ },
+ {
+  "id": "m-5t501o",
+  "at": "2026-10-29T21:00:00.000Z",
+  "home": "NT",
+  "away": "VIC",
+  "channel": "10",
+  "venue": "Newcastle City Touch",
+  "ground": "Field #3",
+  "note": "Touch · Boys 12U · Round 7 · MAG3",
+  "enabled": true
+ },
+ {
+  "id": "m-11i63m9",
+  "at": "2026-10-29T21:00:00.000Z",
+  "home": "QLD",
+  "away": "SA",
+  "channel": "11",
+  "venue": "Newcastle City Touch",
+  "ground": "Field #4",
+  "note": "Touch · Boys 12U · Round 7 · MAG4",
+  "enabled": true
+ },
+ {
+  "id": "m-62sud8",
+  "at": "2026-10-29T21:00:00.000Z",
+  "home": "NSW",
+  "away": "WA",
+  "channel": "12",
+  "venue": "Newcastle City Touch",
+  "ground": "Field #5",
+  "note": "Touch · Boys 12U · Round 7 · MAG5",
+  "enabled": true
+ },
+ {
+  "id": "m-4snvor",
+  "at": "2026-10-29T21:50:00.000Z",
+  "home": "NT",
+  "away": "VIC",
+  "channel": "14",
+  "venue": "Newcastle City Touch",
+  "ground": "Field #3",
+  "note": "Touch · Girls 12U · Round 7 · MAG3",
+  "enabled": true
+ },
+ {
+  "id": "m-1lup6fy",
+  "at": "2026-10-29T21:50:00.000Z",
+  "home": "QLD",
+  "away": "SA",
+  "channel": "15",
+  "venue": "Newcastle City Touch",
+  "ground": "Field #4",
+  "note": "Touch · Girls 12U · Round 7 · MAG4",
+  "enabled": true
+ },
+ {
+  "id": "m-r4uu67",
+  "at": "2026-10-29T21:50:00.000Z",
+  "home": "NSW",
+  "away": "WA",
+  "channel": "16",
+  "venue": "Newcastle City Touch",
+  "ground": "Field #5",
+  "note": "Touch · Girls 12U · Round 7 · MAG5",
   "enabled": true
  },
  {
@@ -161,7 +439,42 @@ export const MIGRATION_MATCHES = [
   "home": "QLD",
   "away": "VIC",
   "channel": "3",
-  "note": "Girls 12U",
+  "venue": "Arthur Edden Oval",
+  "ground": "",
+  "note": "Football · Girls 12U · MAG1",
+  "enabled": true
+ },
+ {
+  "id": "m-34lcu2",
+  "at": "2026-10-29T22:40:00.000Z",
+  "home": "5th",
+  "away": "6th",
+  "channel": "10",
+  "venue": "Newcastle City Touch",
+  "ground": "Field #3",
+  "note": "Touch · Girls 15U · Final · MAG3 · 隊伍當日決定",
+  "enabled": true
+ },
+ {
+  "id": "m-1nnxedg",
+  "at": "2026-10-29T22:40:00.000Z",
+  "home": "3rd",
+  "away": "4th",
+  "channel": "11",
+  "venue": "Newcastle City Touch",
+  "ground": "Field #4",
+  "note": "Touch · Girls 15U · Bronze Medal Game · MAG4 · 隊伍當日決定",
+  "enabled": true
+ },
+ {
+  "id": "m-1rk5q4z",
+  "at": "2026-10-29T22:40:00.000Z",
+  "home": "1st",
+  "away": "2nd",
+  "channel": "12",
+  "venue": "Newcastle City Touch",
+  "ground": "Field #5",
+  "note": "Touch · Girls 15U · Gold Medal Game · MAG5 · 隊伍當日決定",
   "enabled": true
  },
  {
@@ -170,7 +483,75 @@ export const MIGRATION_MATCHES = [
   "home": "WA",
   "away": "NT",
   "channel": "1",
-  "note": "Girls 12U",
+  "venue": "Arthur Edden Oval",
+  "ground": "",
+  "note": "Football · Girls 12U · MAG1",
+  "enabled": true
+ },
+ {
+  "id": "m-1b55kl0",
+  "at": "2026-10-29T23:30:00.000Z",
+  "home": "5th",
+  "away": "6th",
+  "channel": "14",
+  "venue": "Newcastle City Touch",
+  "ground": "Field #3",
+  "note": "Touch · Boys 12U · Final · MAG3 · 隊伍當日決定",
+  "enabled": true
+ },
+ {
+  "id": "m-1kbjrnu",
+  "at": "2026-10-29T23:30:00.000Z",
+  "home": "3rd",
+  "away": "4th",
+  "channel": "15",
+  "venue": "Newcastle City Touch",
+  "ground": "Field #4",
+  "note": "Touch · Boys 12U · Bronze Medal Game · MAG4 · 隊伍當日決定",
+  "enabled": true
+ },
+ {
+  "id": "m-fiihx9",
+  "at": "2026-10-29T23:30:00.000Z",
+  "home": "1st",
+  "away": "2nd",
+  "channel": "16",
+  "venue": "Newcastle City Touch",
+  "ground": "Field #5",
+  "note": "Touch · Boys 12U · Gold Medal Game · MAG5 · 隊伍當日決定",
+  "enabled": true
+ },
+ {
+  "id": "m-11toboe",
+  "at": "2026-10-30T00:20:00.000Z",
+  "home": "5th",
+  "away": "6th",
+  "channel": "10",
+  "venue": "Newcastle City Touch",
+  "ground": "Field #3",
+  "note": "Touch · Girls 12U · Final · MAG3 · 隊伍當日決定",
+  "enabled": true
+ },
+ {
+  "id": "m-b52nq8",
+  "at": "2026-10-30T00:20:00.000Z",
+  "home": "3rd",
+  "away": "4th",
+  "channel": "11",
+  "venue": "Newcastle City Touch",
+  "ground": "Field #4",
+  "note": "Touch · Girls 12U · Bronze Medal Game · MAG4 · 隊伍當日決定",
+  "enabled": true
+ },
+ {
+  "id": "m-1f6onq7",
+  "at": "2026-10-30T00:20:00.000Z",
+  "home": "1st",
+  "away": "2nd",
+  "channel": "12",
+  "venue": "Newcastle City Touch",
+  "ground": "Field #5",
+  "note": "Touch · Girls 12U · Gold Medal Game · MAG5 · 隊伍當日決定",
   "enabled": true
  },
  {
@@ -179,8 +560,42 @@ export const MIGRATION_MATCHES = [
   "home": "FN",
   "away": "NSW",
   "channel": "3",
-  "note": "Girls 12U",
+  "venue": "Arthur Edden Oval",
+  "ground": "",
+  "note": "Football · Girls 12U · MAG1",
+  "enabled": true
+ },
+ {
+  "id": "m-lvf3ms",
+  "at": "2026-10-30T01:10:00.000Z",
+  "home": "5th",
+  "away": "6th",
+  "channel": "14",
+  "venue": "Newcastle City Touch",
+  "ground": "Field #3",
+  "note": "Touch · Boys 15U · Final · MAG3 · 隊伍當日決定",
+  "enabled": true
+ },
+ {
+  "id": "m-1dhssai",
+  "at": "2026-10-30T01:10:00.000Z",
+  "home": "3rd",
+  "away": "4th",
+  "channel": "15",
+  "venue": "Newcastle City Touch",
+  "ground": "Field #4",
+  "note": "Touch · Boys 15U · Bronze Medal Game · MAG4 · 隊伍當日決定",
+  "enabled": true
+ },
+ {
+  "id": "m-6w6dkd",
+  "at": "2026-10-30T01:10:00.000Z",
+  "home": "1st",
+  "away": "2nd",
+  "channel": "16",
+  "venue": "Newcastle City Touch",
+  "ground": "Field #5",
+  "note": "Touch · Boys 15U · Gold Medal Game · MAG5 · 隊伍當日決定",
   "enabled": true
  }
-]
-;
+];

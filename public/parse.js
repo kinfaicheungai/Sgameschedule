@@ -1,6 +1,6 @@
 // Shared schedule parser — used by the browser (CSV / Excel / paste) and the Worker (Google Sheet sync).
 // Input: a table (array of rows, each an array of cells: string | number).
-// Output: { matches: [{id, at, home, away, channel, note, enabled}], errors: [string] }
+// Output: { matches: [{id, at, home, away, channel, venue, ground, note, enabled}], errors: [string] }
 
 /** Split CSV / TSV text into a table. Handles quotes, commas inside quotes, CRLF, and tab-separated paste. */
 export function textToTable(text) {
@@ -32,7 +32,9 @@ const HEADERS = {
   home: ['home', 'home team', 'team 1', 'team1', 'team a', 'teama', '主隊', '隊伍1', '隊1'],
   away: ['away', 'away team', 'team 2', 'team2', 'team b', 'teamb', 'opponent', '客隊', '隊伍2', '隊2', '對手'],
   match: ['match', 'game', 'fixture', 'teams', '比賽', '對賽', '賽事'],
-  channel: ['channel', 'ch', 'court', 'venue', 'field', 'stream', 'camera', '頻道', '場地', '場', '球場'],
+  channel: ['channel', 'ch', 'stream', 'camera', '頻道'],
+  venue: ['venue', 'location', 'site', '地點', '場館', '場地'],
+  ground: ['ground', 'field', 'court', 'pitch', 'oval', 'rink', '球場', '場'],
   enabled: ['reminder', 'remind', 'alert', 'enabled', 'notify', '提醒', '通知'],
   note: ['note', 'notes', 'round', 'pool', 'division', 'comment', '備註', '輪次', '組別'],
 };
@@ -211,7 +213,9 @@ export function parseTable(table, { tz = 'Australia/Sydney', now = new Date() } 
     matches.push({
       id, at,
       home: home.slice(0, 100), away: away.slice(0, 100),
-      channel: String(get('channel')).trim().slice(0, 30),
+      channel: String(get('channel')).trim().replace(/^(channel|ch)\.?\s*/i, '').slice(0, 30),
+      venue: String(get('venue')).trim().slice(0, 80),
+      ground: String(get('ground')).trim().slice(0, 40),
       note: String(get('note')).trim().slice(0, 120),
       enabled: parseEnabled(get('enabled')),
     });
@@ -236,3 +240,6 @@ export function sheetCsvUrl(link) {
   const gid = u.searchParams.get('gid') || /gid=(\d+)/.exec(u.hash)?.[1];
   return `https://docs.google.com/spreadsheets/d/${id[1]}/export?format=csv${gid ? `&gid=${gid}` : ''}`;
 }
+
+/** Key used to switch reminders on/off per venue + field. */
+export const venueKey = (m) => `${(m.venue || '').trim()}|${(m.ground || '').trim()}`;

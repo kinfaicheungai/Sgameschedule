@@ -51,6 +51,23 @@ h1{font:600 40px/1 var(--board);letter-spacing:.005em;margin:18px 0 22px}
 .digits{font:600 44px/1 var(--board);color:var(--amber);font-variant-numeric:tabular-nums;letter-spacing:.02em;text-shadow:0 0 18px rgba(255,181,71,.28)}
 .digits small{font-size:.5em;color:var(--muted);text-shadow:none;margin-left:2px}
 .board.empty .teams{font-size:40px;color:var(--muted)}
+.board-note{font-size:13px;color:var(--muted);margin:-6px 0 14px}
+.board-also{font-size:13px;color:var(--muted);margin:-4px 0 14px;line-height:1.6}
+.board-also b{display:block;color:var(--chalk);font-weight:600;font-size:13px}
+.linkish{border:0;background:transparent;color:var(--amber);font-size:13px;padding:14px 0;cursor:pointer}
+.venue{border-top:1px solid var(--line);padding:14px 0 6px}
+.venue-head{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.venue-head b{font-size:15px}
+.vrow{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:10px 0}
+.vrow span small{display:block;color:var(--faint);font-size:12px}
+.switch{position:relative;width:51px;height:31px;flex:none}
+.switch input{position:absolute;inset:0;opacity:0;margin:0;cursor:pointer;z-index:1}
+.switch i{position:absolute;inset:0;border-radius:31px;background:var(--line);transition:background .2s}
+.switch i::after{content:"";position:absolute;top:3px;left:3px;width:25px;height:25px;border-radius:50%;background:var(--chalk);transition:transform .2s}
+.switch input:checked+i{background:#4ADE80}
+.switch input:checked+i::after{transform:translateX(20px)}
+.switch input:focus-visible+i{outline:2px solid var(--amber);outline-offset:2px}
+@media (prefers-reduced-motion:reduce){.switch i,.switch i::after{transition:none}}
 .court{font:600 15px/1 var(--board);letter-spacing:.04em;color:var(--amber);border:1px solid rgba(255,181,71,.35);border-radius:6px;padding:5px 8px;white-space:nowrap}
 
 /* Health line */
@@ -170,7 +187,7 @@ select.field{appearance:none;background-image:linear-gradient(45deg,transparent 
       <div id="list"></div>
     </section>
   </div>
-  <p class="foot">Match Alerts 2.1</p>
+  <p class="foot">Match Alerts 2.2</p>
 </main>
 
 <!-- Manage sheet -->
@@ -179,6 +196,7 @@ select.field{appearance:none;background-image:linear-gradient(45deg,transparent 
   <div class="seg" role="tablist" id="seg">
     <button role="tab" data-tab="import" aria-selected="true">匯入</button>
     <button role="tab" data-tab="edit" aria-selected="false">編輯</button>
+    <button role="tab" data-tab="venues" aria-selected="false">場地</button>
     <button role="tab" data-tab="alerts" aria-selected="false">通知</button>
     <button role="tab" data-tab="settings" aria-selected="false">設定</button>
   </div>
@@ -212,6 +230,11 @@ select.field{appearance:none;background-image:linear-gradient(45deg,transparent 
       <p>時間以設定入面嘅時區計。</p>
       <div id="editRows"></div>
       <div class="actions"><button class="btn small ghost" id="add">新增比賽</button><button class="btn small primary" id="save">儲存賽程</button></div>
+    </div>
+
+    <div class="pane" data-pane="venues" hidden>
+      <p>揀邊啲場地要提醒。熄咗嘅場地唔會發通知，首頁亦會收埋。改完即時生效。</p>
+      <div id="venueList"></div>
     </div>
 
     <div class="pane" data-pane="alerts" hidden>
@@ -266,7 +289,7 @@ select.field{appearance:none;background-image:linear-gradient(45deg,transparent 
 <div class="toast" id="toast" role="status"></div>
 
 <script type="module">
-import { textToTable, parseTable, isoToZonedInput, zonedToIso, sheetCsvUrl } from '/parse.js';
+import { textToTable, parseTable, isoToZonedInput, zonedToIso, sheetCsvUrl, venueKey } from '/parse.js';
 
 const $ = (id) => document.getElementById(id);
 const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -332,9 +355,16 @@ function applyConfig() {
   document.title = config.title || 'Match Alerts';
 }
 
-function nextMatch() {
-  const now = Date.now();
-  return matches.filter((m) => Date.parse(m.at) > now).sort((a, b) => Date.parse(a.at) - Date.parse(b.at))[0] || null;
+const muted = () => new Set(settings?.mutedVenues || []);
+const isAlerting = (m, mu = muted()) => m.enabled && !mu.has(venueKey(m));
+const placeOf = (m) => m.ground || m.venue || '';
+let showAll = (() => { try { return localStorage.getItem('ssa_showAll') === '1'; } catch { return false; } })();
+
+/** Next match that will actually alert, plus anything else starting at the same time. */
+function nextGroup() {
+  const now = Date.now(), mu = muted();
+  const up = matches.filter((m) => Date.parse(m.at) > now && isAlerting(m, mu)).sort((a, b) => Date.parse(a.at) - Date.parse(b.at) || venueKey(a).localeCompare(venueKey(b), 'en', { numeric: true }));
+  return up.length ? up.filter((m) => m.at === up[0].at) : [];
 }
 
 function pad(n) { return String(n).padStart(2, '0'); }
@@ -347,11 +377,13 @@ function countdown(ms) {
 }
 
 function renderBoard() {
-  const m = nextMatch();
+  const group = nextGroup();
+  const m = group[0];
   const b = $('board');
   if (!m) {
-    b.className = 'board empty';
-    b.innerHTML = `<div class="board-meta"><span>下一場</span></div><div class="teams">未有比賽</div><div class="clock"><div class="clock-label">去「管理 → 匯入」加入賽程</div></div>`;
+    b.className = 'board empty'; delete b.dataset.target;
+    const any = matches.some((x) => Date.parse(x.at) > Date.now());
+    b.innerHTML = `<div class="board-meta"><span>下一場</span></div><div class="teams">${any ? '冇提醒' : '未有比賽'}</div><div class="clock"><div class="clock-label">${any ? '所有場地嘅提醒都關咗。去「管理 → 場地」開返。' : '去「管理 → 匯入」加入賽程'}</div></div>`;
     return;
   }
   b.className = 'board';
@@ -359,8 +391,11 @@ function renderBoard() {
   const before = now < alertAt;
   const label = !m.enabled ? '呢場冇提醒<br>距離開賽' : before ? `提醒會喺 ${esc(fmtClock(new Date(alertAt).toISOString()))}${fmtAmPm(new Date(alertAt).toISOString())} 發出<br>距離提醒` : '已經提醒咗<br>距離開賽';
   const target = m.enabled && before ? alertAt : kick;
-  b.innerHTML = `<div class="board-meta"><span><b>${esc(fmtFull(m.at))}</b>${m.note ? ' &nbsp;' + esc(m.note) : ''}</span>${m.channel ? `<span class="court">${esc(config.channelLabel)} ${esc(m.channel)}</span>` : ''}</div>
+  const also = group.slice(1).map((x) => `${esc(x.home)}${x.away ? ' 對 ' + esc(x.away) : ''}${placeOf(x) ? `（${esc(placeOf(x))}）` : ''}`).join('<br>');
+  b.innerHTML = `<div class="board-meta"><span><b>${esc(fmtFull(m.at))}</b>${placeOf(m) ? ' &nbsp;' + esc(placeOf(m)) : ''}</span>${m.channel ? `<span class="court">${esc(config.channelLabel)} ${esc(m.channel)}</span>` : ''}</div>
     <div class="teams">${esc(m.home)}${m.away ? `<span class="vs">對</span>${esc(m.away)}` : ''}</div>
+    ${m.note ? `<div class="board-note">${esc(m.note)}</div>` : ''}
+    ${also ? `<div class="board-also"><b>同時開賽 ${group.length - 1} 場</b>${also}</div>` : ''}
     <div class="clock"><div class="clock-label">${label}</div><div class="digits" id="digits">${countdown(target - now)}</div></div>`;
   b.dataset.target = target;
 }
@@ -388,22 +423,28 @@ function renderHealth() {
 
 function renderList() {
   const now = Date.now();
-  const sorted = matches.slice().sort((a, b) => Date.parse(a.at) - Date.parse(b.at));
-  const upcoming = sorted.filter((m) => Date.parse(m.at) >= now).length;
-  $('count').textContent = sorted.length ? `${upcoming} 場未開賽 / 共 ${sorted.length} 場` : '';
-  if (!sorted.length) { $('list').innerHTML = '<p class="hint" style="padding:14px 0">未有賽程。去右上角「管理」匯入。</p>'; return; }
+  const mu = muted();
+  const all = matches.slice().sort((a, b) => Date.parse(a.at) - Date.parse(b.at) || venueKey(a).localeCompare(venueKey(b), 'en', { numeric: true }));
+  const hiddenCount = all.filter((m) => !isAlerting(m, mu)).length;
+  const sorted = showAll ? all : all.filter((m) => isAlerting(m, mu));
+  const upcoming = all.filter((m) => Date.parse(m.at) >= now && isAlerting(m, mu)).length;
+  $('count').textContent = all.length ? `${upcoming} 場未開賽會提醒` : '';
+  const toggle = hiddenCount ? `<button class="linkish" id="showAll">${showAll ? `收埋冇提醒嘅 ${hiddenCount} 場` : `仲有 ${hiddenCount} 場冇提醒，顯示`}</button>` : '';
+  if (!all.length) { $('list').innerHTML = '<p class="hint" style="padding:14px 0">未有賽程。去右上角「管理」匯入。</p>'; return; }
   let html = '', last = '';
   for (const m of sorted) {
     const k = dayKey(m.at);
     if (k !== last) { html += `<div class="day">${esc(fmtDay(m.at))}</div>`; last = k; }
     const past = Date.parse(m.at) < now;
-    html += `<div class="game${past ? ' past' : ''}${m.enabled ? '' : ' off'}">
+    const on = isAlerting(m, mu);
+    html += `<div class="game${past ? ' past' : ''}${on ? '' : ' off'}">
       <div class="t">${esc(fmtClock(m.at))}<small>${fmtAmPm(m.at)}</small></div>
-      <div><div class="vs-line">${esc(m.home)}${m.away ? `<i>對</i>${esc(m.away)}` : ''}</div>${m.note ? `<div class="sub">${esc(m.note)}</div>` : ''}</div>
-      <div class="r">${m.channel ? `<span class="court" style="font-size:13px;padding:4px 7px">${esc(m.channel)}</span>` : ''}<span aria-label="${m.enabled ? '有提醒' : '冇提醒'}">${m.enabled ? BELL : BELL_OFF}</span></div>
+      <div><div class="vs-line">${esc(m.home)}${m.away ? `<i>對</i>${esc(m.away)}` : ''}</div>${placeOf(m) || m.note ? `<div class="sub">${[placeOf(m), m.note].filter(Boolean).map(esc).join(' · ')}</div>` : ''}</div>
+      <div class="r">${m.channel ? `<span class="court" style="font-size:13px;padding:4px 7px">${esc(m.channel)}</span>` : ''}<span aria-label="${on ? '有提醒' : '冇提醒'}">${on ? BELL : BELL_OFF}</span></div>
     </div>`;
   }
-  $('list').innerHTML = html;
+  $('list').innerHTML = (html || '<p class="hint" style="padding:14px 0">冇會提醒嘅比賽。</p>') + toggle;
+  $('showAll')?.addEventListener('click', () => { showAll = !showAll; try { localStorage.setItem('ssa_showAll', showAll ? '1' : '0'); } catch {} renderList(); });
 }
 
 function renderHome() { renderBoard(); renderList(); renderHealth(); }
@@ -483,7 +524,7 @@ document.querySelectorAll('dialog.sheet').forEach((d) => {
   d.addEventListener('click', (e) => { if (e.target === d || e.target.closest('[data-close]')) d.close(); });
 });
 $('openHelp').onclick = () => openSheet('help');
-$('openManage').onclick = () => { renderEdit(); openSheet('manage'); refreshStatus(); };
+$('openManage').onclick = () => { renderEdit(); renderVenues(); openSheet('manage'); refreshStatus(); };
 function selectTab(t) {
   document.querySelectorAll('#seg button').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.tab === t)));
   document.querySelectorAll('#manage [data-pane]').forEach((p) => { p.hidden = p.dataset.pane !== t; });
@@ -554,9 +595,62 @@ $('saveSheet').onclick = (e) => act(e.currentTarget, saveSheetSettings, { busy: 
 $('syncNow').onclick = (e) => act(e.currentTarget, async () => {
   if (!(await saveSheetSettings())) throw Error('請先貼上 Google Sheet 連結');
   const r = await api('/api/sync', { method: 'POST' });
-  matches = await api('/api/matches'); renderHome(); renderEdit(); refreshStatus();
+  matches = await api('/api/matches'); renderHome(); renderEdit(); renderVenues(); refreshStatus();
   return r;
 }, { busy: '同步緊…', done: (r) => `已同步 ${r.count} 場${r.errors.length ? `（${r.errors.length} 行略過）` : ''}`, hold: 2500 });
+
+// ---------- Venues / fields ----------
+function renderVenues() {
+  const now = Date.now(), mu = muted();
+  const venues = new Map(); // venue -> Map(key -> {ground, total, upcoming})
+  for (const m of matches) {
+    const v = m.venue || (m.ground ? '' : '未有場地資料');
+    if (!venues.has(v)) venues.set(v, new Map());
+    const k = venueKey(m), g = venues.get(v);
+    if (!g.has(k)) g.set(k, { ground: m.ground, upcoming: 0, next: null });
+    const e = g.get(k);
+    if (Date.parse(m.at) > now) { e.upcoming++; if (!e.next || Date.parse(m.at) < Date.parse(e.next)) e.next = m.at; }
+  }
+  const sortKeys = (a, b) => a[0].localeCompare(b[0], 'en', { numeric: true });
+  const sw = (key, on, label) => `<label class="switch"><input type="checkbox" data-vkey="${esc(key)}" ${on ? 'checked' : ''} aria-label="${esc(label)}"/><i></i></label>`;
+  $('venueList').innerHTML = [...venues].sort(sortKeys).map(([venue, grounds]) => {
+    const rows = [...grounds].sort(sortKeys);
+    const single = rows.length === 1 && !rows[0][1].ground;
+    const allOn = rows.every(([k]) => !mu.has(k));
+    const info = (e) => (e.upcoming ? `${e.upcoming} 場未開賽 · 下一場 ${esc(fmtParts(e.next, { weekday: 'short', hour: 'numeric', minute: '2-digit', hour12: true }))}` : '冇未開賽嘅比賽');
+    if (single) {
+      const [k, e] = rows[0];
+      return `<div class="venue"><div class="vrow"><span><b>${esc(venue)}</b><small>${info(e)}</small></span>${sw(k, !mu.has(k), venue)}</div></div>`;
+    }
+    return `<div class="venue"><div class="venue-head"><b>${esc(venue || '其他')}</b><button class="btn small ghost" data-vall="${esc(venue)}" data-on="${allOn ? '0' : '1'}">${allOn ? '全部熄' : '全部開'}</button></div>
+      ${rows.map(([k, e]) => `<div class="vrow"><span>${esc(e.ground || '（冇分場）')}<small>${info(e)}</small></span>${sw(k, !mu.has(k), `${venue} ${e.ground}`)}</div>`).join('')}</div>`;
+  }).join('') || '<p class="hint" style="margin-top:12px">未有賽程。</p>';
+}
+
+let venueSave = Promise.resolve();
+async function saveMuted(next, message) {
+  const prev = settings.mutedVenues || [];
+  settings = { ...settings, mutedVenues: [...next] };
+  renderHome(); renderVenues();
+  venueSave = venueSave.then(async () => {
+    try {
+      settings = (await api('/api/settings', { method: 'PUT', body: JSON.stringify({ mutedVenues: [...next] }) })).settings;
+      toast(message); refreshStatus();
+    } catch (e) { settings = { ...settings, mutedVenues: prev }; renderHome(); renderVenues(); fail(e); }
+  });
+}
+$('venueList').addEventListener('change', (e) => {
+  const k = e.target.dataset.vkey; if (k === undefined) return;
+  const next = muted(); e.target.checked ? next.delete(k) : next.add(k);
+  const name = k.split('|').filter(Boolean).pop() || k;
+  saveMuted(next, `${name}：提醒${e.target.checked ? '已開' : '已熄'}`);
+});
+$('venueList').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-vall]'); if (!b) return;
+  const venue = b.dataset.vall, on = b.dataset.on === '1', next = muted();
+  for (const m of matches) if ((m.venue || '') === venue) on ? next.delete(venueKey(m)) : next.add(venueKey(m));
+  saveMuted(next, `${venue}：全部提醒${on ? '已開' : '已熄'}`);
+});
 
 // ---------- Edit ----------
 function renderEdit() {
@@ -564,7 +658,7 @@ function renderEdit() {
   $('editRows').innerHTML = matches.slice().sort((a, b) => Date.parse(a.at) - Date.parse(b.at)).map((m) => `<div class="edit" data-id="${esc(m.id)}">
     <div class="f3"><input class="field" data-f="home" value="${esc(m.home)}" placeholder="主隊" aria-label="主隊"/><input class="field" data-f="away" value="${esc(m.away)}" placeholder="客隊" aria-label="客隊"/><input class="field" data-f="channel" value="${esc(m.channel)}" placeholder="${ch}" aria-label="${ch}"/></div>
     <div class="f2"><input class="field" data-f="at" type="datetime-local" value="${isoToZonedInput(m.at, tz())}" aria-label="開賽時間"/><label class="mini"><input type="checkbox" data-f="enabled" ${m.enabled ? 'checked' : ''}/>提醒</label><button class="del" data-del>刪除</button></div>
-    <input class="field" data-f="note" value="${esc(m.note)}" placeholder="備註（可留空）" aria-label="備註" style="margin-top:8px"/>
+    <div class="f3" style="grid-template-columns:1fr 1fr;margin-top:8px"><input class="field" data-f="ground" value="${esc(m.ground)}" placeholder="場 / Field（可留空）" aria-label="場"/><input class="field" data-f="note" value="${esc(m.note)}" placeholder="備註（可留空）" aria-label="備註"/></div>
   </div>`).join('') || '<p class="hint" style="margin-top:12px">未有比賽。</p>';
 }
 function collect() {
@@ -573,7 +667,7 @@ function collect() {
     const v = (k) => el.querySelector(`[data-f="${k}"]`);
     const mm = /^(\d{4})-(\d\d)-(\d\d)T(\d\d):(\d\d)$/.exec(v('at').value);
     if (!mm) throw Error('有場比賽冇填時間');
-    return { ...base, id: base.id || crypto.randomUUID(), home: v('home').value.trim(), away: v('away').value.trim(), channel: v('channel').value.trim(), note: v('note').value.trim(), enabled: v('enabled').checked, at: zonedToIso({ y: +mm[1], m: +mm[2], d: +mm[3], h: +mm[4], mi: +mm[5] }, tz()) };
+    return { ...base, id: base.id || crypto.randomUUID(), home: v('home').value.trim(), away: v('away').value.trim(), channel: v('channel').value.trim(), ground: v('ground').value.trim(), note: v('note').value.trim(), enabled: v('enabled').checked, at: zonedToIso({ y: +mm[1], m: +mm[2], d: +mm[3], h: +mm[4], mi: +mm[5] }, tz()) };
   });
 }
 $('editRows').onclick = (e) => { if (e.target.closest('[data-del]')) e.target.closest('.edit').remove(); };

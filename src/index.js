@@ -1,7 +1,7 @@
 import { DurableObject } from 'cloudflare:workers';
 import { sendPush } from './webpush.js';
-import { textToTable, parseTable, sheetCsvUrl } from '../public/parse.js';
-import { MIGRATION_ID, MIGRATION_MATCHES } from './migration.js';
+import { textToTable, parseTable, sheetCsvUrl, venueKey } from '../public/parse.js';
+import { MIGRATION_ID, MIGRATION_MATCHES, MIGRATION_SETTINGS } from './migration.js';
 
 const SEND_WINDOW_MAX_MS = 5 * 60_000; // send between T-N and T-N+5 min; never fire stale reminders
 const AUTO_SYNC_MS = 15 * 60_000;
@@ -15,7 +15,11 @@ const DEFAULT_SETTINGS = {
   channelLabel: 'Channel',      // what the 3rd column means: Channel / Court / Venue …
   sheetUrl: '',                 // Google Sheet link (shared "anyone with the link can view")
   autoSync: false,
+  mutedVenues: [],              // venueKey()s whose matches get no reminders
 };
+
+/** Will this match send a reminder? (its own switch + its venue/field switch) */
+const alerting = (m, settings) => m.enabled && !(settings.mutedVenues || []).includes(venueKey(m));
 
 // Five confirmed MAG2 fixtures, used only when storage is empty (first run).
 const SEED_MATCHES = [
@@ -47,10 +51,12 @@ const dayOf = (iso, tz) =>
   new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(iso));
 
 /** "今日仲有 N 場（包括呢場）" — matches today (in tz) that haven't kicked off yet, counting this one. */
-function remainingToday(matches, m, tz) {
+function remainingToday(matches, m, settings, size = 1) {
+  const tz = settings.timezone;
   const day = dayOf(m.at, tz);
-  const n = matches.filter((x) => x.enabled && dayOf(x.at, tz) === day && Date.parse(x.at) >= Date.parse(m.at)).length;
-  return n <= 1 ? '今日最後一場' : `今日仲有 ${n} 場（包括呢場）`;
+  const n = matches.filter((x) => alerting(x, settings) && dayOf(x.at, tz) === day && Date.parse(x.at) >= Date.parse(m.at)).length;
+  if (n <= size) return size > 1 ? '今日最後一輪' : '今日最後一場';
+  return `今日仲有 ${n} 場（包括${size > 1 ? '呢幾場' : '呢場'}）`;
 }
 
 const fmtTime = (iso, tz) =>
@@ -64,7 +70,8 @@ export class Store extends DurableObject {
     if (!matches) { matches = SEED_MATCHES; await s.put('matches', matches); }
     if ((await s.get('migration')) !== MIGRATION_ID) {
       matches = MIGRATION_MATCHES;
-      await s.put({ matches, sent: [], migration: MIGRATION_ID });
+      const settings = { ...((await s.get('settings')) || {}), ...MIGRATION_SETTINGS };
+      await s.put({ matches, sent: [], migration: MIGRATION_ID, settings });
       await this.log({ type: 'sync', count: matches.length, note: MIGRATION_ID });
     }
     return {
@@ -101,6 +108,10 @@ export class Store extends DurableObject {
       next.sheetUrl = u;
     }
     if (input.autoSync !== undefined) next.autoSync = !!input.autoSync;
+    if (input.mutedVenues !== undefined) {
+      if (!Array.isArray(input.mutedVenues)) return { error: 'Invalid venue list' };
+      next.mutedVenues = [...new Set(input.mutedVenues.map((k) => String(k).slice(0, 130)))].slice(0, 300);
+    }
     await this.ctx.storage.put('settings', next);
     return { ok: true, settings: next };
   }
@@ -128,6 +139,8 @@ export class Store extends DurableObject {
         home: String(r.home).slice(0, 100),
         away: String(r.away || '').slice(0, 100),
         channel: String(r.channel ?? '').slice(0, 30),
+        venue: String(r.venue ?? '').slice(0, 80),
+        ground: String(r.ground ?? '').slice(0, 40),
         note: String(r.note ?? '').slice(0, 120),
         enabled: r.enabled !== false,
       });
@@ -243,26 +256,34 @@ export class Store extends DurableObject {
     }
 
     // Reminders first: they must never be delayed by a slow sheet sync.
-    for (const m of matches) {
-      const key = `${m.id}|${m.at}`;
-      if (!m.enabled || sent.includes(key)) continue;
+    const due = matches.filter((m) => {
+      if (!alerting(m, settings) || sent.includes(`${m.id}|${m.at}`)) return false;
       const trigger = Date.parse(m.at) - lead;
-      if (now < trigger || now >= trigger + windowMs) continue;
-      if (!subscriptions.length) continue;
-      const teams = m.away ? `${m.home} vs ${m.away}` : m.home;
-      const where = m.channel ? ` · ${settings.channelLabel} ${m.channel}` : '';
-      const r = await this.broadcast({
-        title: `${settings.emoji ? settings.emoji + ' ' : ''}${teams}`,
-        body: `${settings.reminderMinutes} 分鐘後開賽 · ${fmtTime(m.at, settings.timezone)}${where}${m.note ? ' · ' + m.note : ''}\n${remainingToday(matches, m, settings.timezone)}`,
-        url: '/',
-      });
-      // Retry next minute if nothing got through, until the window closes.
-      if (r.delivered > 0) {
-        sent.push(key);
-        await this.ctx.storage.put('sent', sent.slice(-1000));
+      return now >= trigger && now < trigger + windowMs;
+    });
+    if (due.length && subscriptions.length) {
+      // Matches starting at the same time (e.g. three fields at once) share one notification.
+      const byTime = new Map();
+      for (const m of due) byTime.set(m.at, [...(byTime.get(m.at) || []), m]);
+      const emoji = settings.emoji ? settings.emoji + ' ' : '';
+      for (const [at, group] of [...byTime].sort((a, b) => Date.parse(a[0]) - Date.parse(b[0]))) {
+        group.sort((a, b) => venueKey(a).localeCompare(venueKey(b), 'en', { numeric: true }));
+        const teams = (m) => (m.away ? `${m.home} vs ${m.away}` : m.home);
+        const place = (m) => [m.ground || m.venue, m.channel ? `${settings.channelLabel} ${m.channel}` : ''].filter(Boolean).join(' · ');
+        const when = `${settings.reminderMinutes} 分鐘後開賽 · ${fmtTime(at, settings.timezone)}`;
+        const left = remainingToday(matches, group[0], settings, group.length);
+        const payload = group.length === 1
+          ? { title: `${emoji}${teams(group[0])}`, body: [`${when}${place(group[0]) ? ' · ' + place(group[0]) : ''}`, group[0].note, left].filter(Boolean).join('\n') }
+          : { title: `${emoji}${group.length} 場 ${fmtTime(at, settings.timezone)} 開賽`, body: [`${settings.reminderMinutes} 分鐘後開賽`, ...group.map((m) => `${teams(m)}${place(m) ? ' · ' + place(m) : ''}`), left].join('\n') };
+        const r = await this.broadcast({ ...payload, url: '/' });
+        // Retry next minute if nothing got through, until the window closes.
+        if (r.delivered > 0) {
+          for (const m of group) sent.push(`${m.id}|${m.at}`);
+          await this.ctx.storage.put('sent', sent.slice(-1000));
+        }
+        await this.log({ type: 'reminder', match: group.map(teams).join('、'), at, ...r });
+        results.push({ at, count: group.length, ...r });
       }
-      await this.log({ type: 'reminder', match: teams, at: m.at, ...r });
-      results.push({ id: m.id, ...r });
     }
 
     if (settings.autoSync && settings.sheetUrl) {
@@ -281,7 +302,7 @@ export class Store extends DurableObject {
     const lead = settings.reminderMinutes * 60_000;
     const windowMs = Math.min(SEND_WINDOW_MAX_MS, lead);
     const next = matches
-      .filter((m) => m.enabled && !sent.includes(`${m.id}|${m.at}`) && Date.parse(m.at) - lead + windowMs > now)
+      .filter((m) => alerting(m, settings) && !sent.includes(`${m.id}|${m.at}`) && Date.parse(m.at) - lead + windowMs > now)
       .sort((a, b) => Date.parse(a.at) - Date.parse(b.at))[0] || null;
     return {
       devices: subscriptions.length,
